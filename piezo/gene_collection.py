@@ -8,25 +8,26 @@ from Bio import SeqIO
 
 from snpit import snpit
 
-import piezo
+import cryptic.genetics
 
 class GeneCollection(object):
 
-    """Gene panel that contains several gene objects"""
+    """Gene panel that contains several CRyPTIC gene objects"""
 
-    def __init__(self,species=None,genbank_file=None,database=None,study=None):
+    def __init__(self,species=None,genbank_file=None,database=None,study=None,gene_panel=None):
 
         # store the species name, study and instance
         self.species=species
         self.database=database
         self.study=study
         self.instance=study
+        self.gene_panel=gene_panel
 
         # check the log folder exists (it probably does)
         pathlib.Path('logs/').mkdir(parents=True, exist_ok=True)
 
         datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
-        logging.basicConfig(filename="logs/GeneCollection-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
+        logging.basicConfig(filename="logs/"+self.database+"-"+self.study+"-cryptic-gene-collection-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
         if self.species=="M. tuberculosis":
             # 4411532 is too small! This assumes no gene name has more than 7 characters
@@ -38,7 +39,11 @@ class GeneCollection(object):
         self.config_path = '/'.join(('..','config'))
 
         # load and store the gene panel file in a dictionary
-        self.gene_panel=self._read_genepanel_file(pkg_resources.resource_filename("cryptic", self.config_path+"/"+self.database+"-"+self.study+"-gene_panel.csv"))
+        # self.gene_panel=self._read_genepanel_file(pkg_resources.resource_filename("cryptic", self.config_path+"/"+self.database+"-"+self.study+"-gene_panel.csv"))
+
+        # print((self.gene_panel))
+        # for i in self.gene_panel:
+        #     print(i, self.gene_panel[i])
 
         self._parse_genbank_file(pkg_resources.resource_filename("cryptic", self.config_path+"/"+genbank_file))
 
@@ -48,34 +53,12 @@ class GeneCollection(object):
         self.vcf_file=vcf_file
 
         # remember the folder path and the name of the passed VCF file
-        (self.vcf_folder,self.vcf_filename)=os.path.split(self.vcf_file)
-
-        cols=self.vcf_folder.split("/")
-        study=cols[1]
-        instance=cols[2]
-
-        # find and load the Datreant object created when the VCF was moved into place
-        self.datreant_file=cryptic.genetics.VCFMeasurement(self.vcf_folder)
+        (self.vcf_folder,self.vcf_filename)=os.path.split(vcf_file)
 
         (self.UniqueID,self.site_id,self.subject_id,self.lab_id,self.iso_id) = self._parse_vcf_filename(self.vcf_filename)
 
-        # be _very_ defensive and check these are what are stored in the Datreant object
-        assert study==self.datreant_file.categories["STUDYID"], "STUDY "+study+" does not match "+self.datreant_file.categories["STUDYID"]+" which is stored in the datreant file for UniqueID "+self.UniqueID
-        assert instance==self.datreant_file.categories["INSTANCE"]
-        assert self.UniqueID==self.datreant_file.categories["UNIQUEID"], "UniqueID "+self.UniqueID+" does not match "+self.datreant_file.categories["UNIQUEID"]+" which is stored in the datreant file"
-        assert self.site_id==self.datreant_file.categories["SITEID"]
-        assert self.subject_id==self.datreant_file.categories["SUBJID"]
-        assert self.lab_id==self.datreant_file.categories["LABID"]
-        assert self.iso_id==self.datreant_file.categories["ISOLATENO"]
-
         # find out what the species, lineage etc are
-        (species,lineage,sublineage,percentage)=self._determine_lineage()
-
-        # store these in the Datreant object
-        self.datreant_file.categories["SPECIES"]=species
-        self.datreant_file.categories["LINEAGE"]=lineage
-        self.datreant_file.categories["SUBLINEAGE"]=sublineage
-        self.datreant_file.categories["LINEAGE_PERCENTAGE"]=percentage
+        (self.species,self.lineage,self.sublineage,self.lineage_percentage)=self._determine_lineage()
 
         n_null=0
         n_het=0
@@ -204,38 +187,21 @@ class GeneCollection(object):
 
                             self.gene[gene_name].store_indel(mutation=mutation_name,ref=ref_bases,alt=alt_bases)
 
-        self.datreant_file.categories["GENOME_N_HOM"]=n_hom
-        self.datreant_file.categories["GENOME_N_HET"]=n_het
-        self.datreant_file.categories["GENOME_N_REF"]=n_ref
-        self.datreant_file.categories["GENOME_N_NULL"]=n_null
 
-    def determine_mdr(self):
-
-        tb_type_1="MDR"
-        if self.datreant_file.categories["WGS_PREDICTION_INH"]=="R" and self.datreant_file.categories["WGS_PREDICTION_RIF"]=="R":
-            if (self.datreant_file.categories["WGS_PREDICTION_MXF"]=="R" or self.datreant_file.categories["WGS_PREDICTION_LEV"]=="R") and (self.datreant_file.categories["WGS_PREDICTION_AMI"]=="R" or self.datreant_file.categories["WGS_PREDICTION_KAN"]=="R"):
-                tb_type_1="XDR"
-            else:
-                tb_type_1="MDR"
-        elif self.datreant_file.categories["WGS_PREDICTION_RIF"]=="R":
-            tb_type_1="RIF"
-        else:
-            tb_type_1="SUS"
-
-        self.datreant_file.categories["TB_TYPE_1"]=tb_type_1
+        return(n_hom,n_het,n_ref,n_null)
 
 
-    def _read_genepanel_file(self,gene_panel_file):
-
-        gene_panel={}
-        with open(gene_panel_file) as file:
-            # read and discard the first line as the header
-            file.readline()
-            for line in file:
-                cols=line.split(',')
-                gene_panel[cols[0]]=cols[1].rstrip()
-
-        return(gene_panel)
+    # def _read_genepanel_file(self,gene_panel_file):
+    #
+    #     gene_panel={}
+    #     with open(gene_panel_file) as file:
+    #         # read and discard the first line as the header
+    #         file.readline()
+    #         for line in file:
+    #             cols=line.split(',')
+    #             gene_panel[cols[0]]=cols[1].rstrip().upper()
+    #
+    #     return(gene_panel)
 
     def _parse_genbank_file(self,genbank_file):
 
@@ -273,11 +239,11 @@ class GeneCollection(object):
                     strand=record.location.strand.real
 
                     # retrieve the number of the first protein coding codon (usually 1)
-                    if self.gene_panel[gene_name] in ['gene','locus']:
+                    if self.gene_panel[gene_name] in ['GENE','LOCUS']:
                         codon_start=record.qualifiers['codon_start']
                         first_amino_acid_position=int(codon_start[0])
                         default_promoter_length=100
-                    elif self.gene_panel[gene_name]=='rna':
+                    elif self.gene_panel[gene_name]=='RNA':
                         first_amino_acid_position=1
                         default_promoter_length=0
                     else:

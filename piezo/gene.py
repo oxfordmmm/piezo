@@ -27,7 +27,7 @@ class Gene(object):
         pathlib.Path('logs/').mkdir(parents=True, exist_ok=True)
 
         datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
-        logging.basicConfig(filename="logs/Gene-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
+        logging.basicConfig(filename="logs/cryptic-genetics-gene-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
         # how many nucleotides have we been given?
         self.number_coding_nucleotides=len(self.coding_nucleotides_string)
@@ -43,7 +43,7 @@ class Gene(object):
         else:
             self.promoter_nucleotide_index=numpy.array([i for i in range (self.first_nucleotide_index-self.number_promoter_nucleotides,self.first_nucleotide_index,1)])
 
-        if self.element_type in ['gene','locus']:
+        if self.element_type in ['GENE','LOCUS']:
 
             self.first_amino_acid_position=first_amino_acid_position
 
@@ -86,7 +86,7 @@ class Gene(object):
             self.promoter_sequence=numpy.array([i for i in self.promoter_nucleotides_string])
 
         # only translate the sequence if it is a protein coding element
-        if self.element_type in ['gene','locus']:
+        if self.element_type in ['GENE','LOCUS']:
             self._translate_sequence()
 
     def _translate_sequence(self):
@@ -117,7 +117,7 @@ class Gene(object):
         output+="%i nucleotides\n" % self.number_coding_nucleotides
         output+=self.coding_nucleotides_string[0:13]+"..."+self.coding_nucleotides_string[-16:]+"\n"
         output+="%i to %i\n" % (self.coding_nucleotide_index[0],self.coding_nucleotide_index[-1])
-        if self.element_type in ['gene','locus']:
+        if self.element_type in ['GENE','LOCUS']:
             output+="%i nucleotides promoter\n" % (self.number_promoter_nucleotides)
             output+="%i amino acids\n" % self.number_amino_acids
             output+=self.amino_acid_string[0:4]+"..."+self.amino_acid_string[-5:]+"\n"
@@ -226,7 +226,7 @@ class Gene(object):
         self.mutation_new=self.promoter_nucleotides[promoter_mutation_mask]
         self.mutation_pos=self.promoter_nucleotides_position[promoter_mutation_mask]
 
-        if self.element_type in ['gene','locus']:
+        if self.element_type in ['GENE','LOCUS']:
 
             # make Boolean array identifying where there are differences between the nucleotide triplets/amino acids
             coding_mutation_mask=self.triplets!=reference.triplets
@@ -235,7 +235,7 @@ class Gene(object):
             self.mutation_new=numpy.append(self.mutation_new,self.triplets[coding_mutation_mask])
             self.mutation_pos=numpy.append(self.mutation_pos,self.amino_acid_position[coding_mutation_mask])
 
-        elif self.element_type=="rna":
+        elif self.element_type=="RNA":
 
             coding_mutation_mask=self.coding_sequence!=reference.coding_sequence
 
@@ -269,7 +269,7 @@ class Gene(object):
                 number_nucleotide_changes=int(cols[2])
 
             self.mutations[i]={ "ELEMENT_TYPE": self.element_type,\
-                                "TYPE": "INDEL",
+                                "VARIANT_TYPE": "INDEL",
                                 "POSITION": int(cols[0]),\
                                 "PROMOTER":promoter,
                                 "CDS":cds,\
@@ -284,7 +284,7 @@ class Gene(object):
 
         for (before,position,after) in zip(self.mutation_ref,self.mutation_pos,self.mutation_new):
 
-            if (self.element_type=='rna') or (self.element_type in ['gene','locus'] and position<0):
+            if (self.element_type=='RNA') or (self.element_type in ['GENE','LOCUS'] and position<0):
 
                 final_before=before
                 final_after=after
@@ -318,7 +318,7 @@ class Gene(object):
                 nonsynonymous=True
 
             self.mutations[mutation_name]={ "ELEMENT_TYPE": self.element_type,\
-                                "TYPE": "SNP",
+                                "VARIANT_TYPE": "SNP",
                                 "POSITION": position,\
                                 "PROMOTER":promoter,
                                 "CDS":cds,\

@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 
-import logging, pkg_resources, pathlib
+import logging, pkg_resources, pathlib, math
 from datetime import datetime
 
 import pandas, numpy
 
-from piezo import Gene
+from cryptic.genetics import Gene
 
 class ResistanceCatalogue(object):
 
@@ -32,55 +32,51 @@ class ResistanceCatalogue(object):
 
 
         datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
-        logging.basicConfig(filename="logs/ResistanceCatalogue-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
+        logging.basicConfig(filename="logs/cryptic-genetics-resistancecatalogue-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
     def _parse_catalogue_file(self,input_file):
 
         self.gene_lookup={}
         self.drug_lookup={}
 
-        self.df = pandas.read_csv(input_file)
+        self.resistance_catalogue = pandas.read_csv(input_file)
 
-        self.number_rows = len(self.df)
+        self.number_rows = len(self.resistance_catalogue)
 
         # be defensive
-        assert numpy.sum(self.df["TYPE"].isin(["SNP","INDEL"]))==self.number_rows, "TYPE column contains entries other than SNP or INDEL"
-        assert numpy.sum(self.df["AFFECTS"].isin(['CDS','PROM','RNA']))==self.number_rows, "AFFECTS column contains entries other than CDS, PROM or RNA"
-        assert numpy.sum(self.df["PRED"].isin(['R','S','U']))==self.number_rows, "PRED column contains entries other than R, S or U"
+        assert numpy.sum(self.resistance_catalogue["VARIANT_TYPE"].isin([numpy.nan,"SNP","INDEL"]))==self.number_rows, "TYPE column contains entries other than SNP or INDEL"
+        assert numpy.sum(self.resistance_catalogue["VARIANT_AFFECTS"].isin([numpy.nan,'CDS','PROM','RNA']))==self.number_rows, "AFFECTS column contains entries other than CDS, PROM or RNA"
+        # assert numpy.sum(self.resistance_catalogue["PRED"].isin(['R','S','U']))==self.number_rows, "PRED column contains entries other than R, S or U"
 
-        n_duplicated_rows=len(self.df.loc[self.df.duplicated(subset=["DRUG","MUTATION"],keep='first')])
+        n_duplicated_rows=len(self.resistance_catalogue.loc[self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"],keep='first')])
         print("There are "+str(n_duplicated_rows)+" duplicated rows in the catalogue")
 
-        self.df=self.df.loc[~self.df.duplicated(subset=["DRUG","MUTATION"],keep='first')]
+        self.resistance_catalogue=self.resistance_catalogue.loc[~self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"],keep='first')]
 
-        def create_gene(row):
-            components=row.MUTATION.split("_")
-            gene_name=components[0]
-            return(gene_name)
+        self.resistance_catalogue["GENE_MUTATION"]=self.resistance_catalogue["GENE"]+"_"+self.resistance_catalogue["MUTATION"]
 
-        self.df["GENE"]=self.df.apply(create_gene,axis=1)
-
-        def create_position(row):
-            components=row.MUTATION.split("_")
-            if len(components)==2:
-                position=int(components[1][1:-1])
+        for gene_name in self.resistance_catalogue.GENE.unique():
+            tmp=self.resistance_catalogue.loc[(self.resistance_catalogue.GENE==gene_name) & (~self.resistance_catalogue.DRUG.isna())]
+            if tmp.empty:
+                self.gene_lookup[gene_name]=None
             else:
-                position=int(components[1])
-            return(position)
+                self.gene_lookup[gene_name]=list(tmp.DRUG.unique())
 
-        self.df["POSITION"]=self.df.apply(create_position,axis=1)
-
-        for gene_name in self.df.GENE.unique():
-            tmp=self.df.loc[self.df.GENE==gene_name]
-            self.gene_lookup[gene_name]=list(tmp.DRUG.unique())
-
-        for drug_name in self.df.DRUG.unique():
-            tmp=self.df.loc[self.df.DRUG==drug_name]
+        for drug_name in self.resistance_catalogue.DRUG.unique():
+            tmp=self.resistance_catalogue.loc[self.resistance_catalogue.DRUG==drug_name]
             self.drug_lookup[drug_name]=list(tmp.GENE.unique())
 
-        self.gene_list=list(self.df.GENE.unique())
+        self.gene_list=list(self.resistance_catalogue.GENE.unique())
 
-        # self.df.set_index(["DRUG","MUTATION"],inplace=True)
+        self.gene_panel={}
+        foo=self.resistance_catalogue[["GENE","GENE_TYPE","MUTATION"]].groupby(["GENE","GENE_TYPE"]).count().to_dict()
+        for i in foo['MUTATION']:
+            self.gene_panel[i[0]]=i[1]
+        # print((self.gene_panel))
+
+        # print(self.gene_list)
+
+        # self.resistance_catalogue.set_index(["DRUG","MUTATION"],inplace=True)
 
 
     # def _parse_catalogue_file(self,input_file):
@@ -167,7 +163,9 @@ class ResistanceCatalogue(object):
     #                     # else:
     #                     #     print("duplicate row in catalogue: "+line.rstrip()) #,gene_name,position,after,self.entry[gene_name][position][after],self.entry[gene_name][position][after].keys())
     #
-    def predict(self,mutation=None):
+    def predict(self,mutation=None,catalogue_name="CRYPTICv0.9"):
+
+        assert catalogue_name+"_PREDICTION" in self.resistance_catalogue.columns, "specified catalogue does not have a column in the loaded Resistance Catalogue!"
 
         components=mutation.split("_")
 
@@ -207,7 +205,7 @@ class ResistanceCatalogue(object):
             drugs=self.gene_lookup[gene_name]
 
             # if there aren't any just return an S again
-            if drugs==[]:
+            if drugs is None:
                 return("S")
 
             # create the result dictionary e.g. {"RIF":'R', "RFB":'R'}
@@ -217,7 +215,7 @@ class ResistanceCatalogue(object):
             # deal with each compound, one at a time
             for compound in drugs:
 
-                same_position_rows = self.df.loc[(self.df.POSITION==position) & (self.df.DRUG==compound)]
+                same_position_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.POSITION==position) & (self.resistance_catalogue.DRUG==compound)]
 
                 # if the mutation is synonmous, just return SUSCEPTIBLE
                 if mutation_type=="SNP" and before==after:
@@ -231,20 +229,20 @@ class ResistanceCatalogue(object):
 
                     # check for wildtype matching rows
                     if mutation_type=="SNP":
-                        matching_rows = self.df.loc[(self.df.MUTATION==gene_name+"_"+before+str(position)+"*") & (self.df.DRUG==compound)]
+                        matching_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.GENE_MUTATION==gene_name+"_"+before+str(position)+"*") & (self.resistance_catalogue.DRUG==compound)]
                         if len(matching_rows)==1:
-                            result[compound]=matching_rows["PRED"].values[0]
+                            result[compound]=matching_rows[catalogue_name+"_PREDICTION"].values[0]
                             found_result=True
                     elif mutation_type=="INDEL":
-                        matching_rows = self.df.loc[(self.df.MUTATION==gene_name+"_"+str(position)+"_"+indel_type+"_*") & (self.df.DRUG==compound)]
+                        matching_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.GENE_MUTATION==gene_name+"_"+str(position)+"_"+indel_type+"_*") & (self.resistance_catalogue.DRUG==compound)]
                         if len(matching_rows)==1:
-                            result[compound]=matching_rows["PRED"].values[0]
+                            result[compound]=matching_rows[catalogue_name+"_PREDICTION"].values[0]
                             found_result=True
 
                     # otherwise look for an exact match
-                    matching_rows = self.df.loc[(self.df.MUTATION==mutation) & (self.df.DRUG==compound)]
+                    matching_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.GENE_MUTATION==mutation) & (self.resistance_catalogue.DRUG==compound)]
                     if len(matching_rows)==1:
-                        result[compound]=matching_rows["PRED"].values[0]
+                        result[compound]=matching_rows[catalogue_name+"_PREDICTION"].values[0]
                         found_result=True
 
                     # otherwise there is no match in the catalogue at this position, return UNKNOWN
