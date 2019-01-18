@@ -1,11 +1,11 @@
 #! /usr/bin/env python
 
-import logging, pkg_resources, pathlib, math
+import logging, pkg_resources, pathlib
 from datetime import datetime
 
 import pandas, numpy
 
-from cryptic.genetics import Gene
+from piezo import Gene
 
 class ResistanceCatalogue(object):
 
@@ -49,9 +49,9 @@ class ResistanceCatalogue(object):
         # assert numpy.sum(self.resistance_catalogue["PRED"].isin(['R','S','U']))==self.number_rows, "PRED column contains entries other than R, S or U"
 
         n_duplicated_rows=len(self.resistance_catalogue.loc[self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"],keep='first')])
-        print("There are "+str(n_duplicated_rows)+" duplicated rows in the catalogue")
+        assert n_duplicated_rows==0, "There are duplicated rows in the catalogue!"
 
-        self.resistance_catalogue=self.resistance_catalogue.loc[~self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"],keep='first')]
+        # self.resistance_catalogue=self.resistance_catalogue.loc[~self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"],keep='first')]
 
         self.resistance_catalogue["GENE_MUTATION"]=self.resistance_catalogue["GENE"]+"_"+self.resistance_catalogue["MUTATION"]
 

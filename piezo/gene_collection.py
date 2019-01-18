@@ -8,7 +8,7 @@ from Bio import SeqIO
 
 from snpit import snpit
 
-import cryptic.genetics
+import piezo
 
 class GeneCollection(object):
 
@@ -53,9 +53,7 @@ class GeneCollection(object):
         self.vcf_file=vcf_file
 
         # remember the folder path and the name of the passed VCF file
-        (self.vcf_folder,self.vcf_filename)=os.path.split(vcf_file)
-
-        (self.UniqueID,self.site_id,self.subject_id,self.lab_id,self.iso_id) = self._parse_vcf_filename(self.vcf_filename)
+        (self.vcf_folder,self.vcf_filename)=os.path.split(vcf_file)        
 
         # find out what the species, lineage etc are
         (self.species,self.lineage,self.sublineage,self.lineage_percentage)=self._determine_lineage()
@@ -268,7 +266,7 @@ class GeneCollection(object):
                     promoter_nucleotides_string=str(promoter_nucleotides.seq)
 
                     # create a Gene object defined using the above information
-                    self.gene[gene_name]=cryptic.genetics.Gene(gene_name=gene_name,coding_nucleotides=coding_nucleotides_string,promoter_nucleotides=promoter_nucleotides_string,first_nucleotide_index=first_nucleotide_index,first_amino_acid_position=first_amino_acid_position,reverse=reverse,element_type=self.gene_panel[gene_name])
+                    self.gene[gene_name]=piezo.Gene(gene_name=gene_name,coding_nucleotides=coding_nucleotides_string,promoter_nucleotides=promoter_nucleotides_string,first_nucleotide_index=first_nucleotide_index,first_amino_acid_position=first_amino_acid_position,reverse=reverse,element_type=self.gene_panel[gene_name])
 
 
     def _determine_lineage(self):
