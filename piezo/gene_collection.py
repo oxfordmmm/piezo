@@ -173,19 +173,6 @@ class GeneCollection(object):
 
         return(n_hom,n_het,n_ref,n_null)
 
-
-    # def _read_genepanel_file(self,gene_panel_file):
-    #
-    #     gene_panel={}
-    #     with open(gene_panel_file) as file:
-    #         # read and discard the first line as the header
-    #         file.readline()
-    #         for line in file:
-    #             cols=line.split(',')
-    #             gene_panel[cols[0]]=cols[1].rstrip().upper()
-    #
-    #     return(gene_panel)
-
     def _parse_genbank_file(self,genbank_file):
 
         self.gene={}

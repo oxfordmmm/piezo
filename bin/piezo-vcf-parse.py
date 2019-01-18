@@ -21,6 +21,7 @@ if __name__ == "__main__":
     # check the log folder exists (it probably does)
     pathlib.Path('logs/').mkdir(parents=True, exist_ok=True)
 
+    # create a datestamp for the log files
     datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
 
     # instantiate a Resistance Catalogue instance by passing a text file
@@ -36,6 +37,14 @@ if __name__ == "__main__":
     MUTATIONS_counter=0
     EFFECTS_dict={}
     EFFECTS_counter=0
+
+    # define the list of drugs
+    # ordered as
+    # 1st line: R,I,P,E
+    # 2nd line: aminoglycosides (AMI, KAN), fluroquinolones (LEV, MXF), ETH, PAS
+    # 3rd line: RFB, LZD, BDQ, DLM
+    # Repurposed: CFZ
+    drug_list=["RIF","INH","PZA","EMB","AMI","KAN","LEV","MXF","ETH","PAS","RFB","LZD","BDQ","DLM","CFZ"]
 
     # create a copy of the wildtype_gene_collection genes which we will then alter according to the VCF file
     # need a deepcopy to ensure we take all the private variables etc with us, and point just take pointers
@@ -60,7 +69,7 @@ if __name__ == "__main__":
 
     # by default assume wildtype behaviour so set all drug phenotypes to be susceptible
     phenotype={}
-    for drug in walker_catalogue.drug_list:
+    for drug in drug_list:
         phenotype[drug]="S"
 
     # now get all the genes to calculate their own differences w.r.t the references, i.e. their mutations!
@@ -128,7 +137,7 @@ if __name__ == "__main__":
     EFFECTS.to_csv(sample_gene_collection.vcf_folder+"/effects.csv")
 
     wgs_prediction_string=""
-    for drug in walker_catalogue.drug_list:
+    for drug in drug_list:
         datreant_file.categories["WGS_PREDICTION_"+drug]=phenotype[drug]
         wgs_prediction_string+=phenotype[drug]
     datreant_file.categories["WGS_PREDICTION_STRING"]=wgs_prediction_string
