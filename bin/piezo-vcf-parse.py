@@ -1,7 +1,8 @@
 #! /usr/bin/python3.5
 
-import argparse,os
+import argparse, os, pathlib
 from copy import deepcopy
+from datetime import datetime
 
 import pandas
 from tqdm import tqdm
@@ -11,23 +12,25 @@ import piezo
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--database",default='CRyPTIC2',help="the name of the database (default='CRyPTIC2')")
-    parser.add_argument("--study",default='V2',help="the name of the study (default='V2')")
     parser.add_argument("--vcf_file",required=True,help="the path to a single VCF file")
     parser.add_argument("--genbank",default="H37Rv.gbk",help="the genbank file of the H37Rv M. tuberculosis wildtype_gene_collection genome")
-    parser.add_argument("--resistance_catalogue",default="Catalogue_of_variants_3_mod.csv",required=False,help="the path to the resistance catalogue")
+    parser.add_argument("--resistance_catalogue",default="test_catalogue.csv",required=False,help="the path to the resistance catalogue")
     parser.add_argument("--verbose",action='store_true',default=False,help="whether to show progress using tqdm")
     options = parser.parse_args()
 
+    # check the log folder exists (it probably does)
+    pathlib.Path('logs/').mkdir(parents=True, exist_ok=True)
+
+    datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
+
     # instantiate a Resistance Catalogue instance by passing a text file
-    walker_catalogue=piezo.ResistanceCatalogue(input_file=options.resistance_catalogue)
+    walker_catalogue=piezo.ResistanceCatalogue(input_file=options.resistance_catalogue,log_file="logs/piezo-resistance-catalogue-"+datestamp+".csv")
 
     # retrieve the dictionary of genes from the Resistance Catalogue
     gene_panel=walker_catalogue.gene_panel
 
     # setup a GeneCollection object that contains all the genes/loci we are interested in
-    wildtype_gene_collection=piezo.GeneCollection(species="M. tuberculosis",genbank_file=options.genbank,database=options.database,study=options.study,gene_panel=gene_panel)
-
+    wildtype_gene_collection=piezo.GeneCollection(species="M. tuberculosis",genbank_file=options.genbank,gene_panel=gene_panel,log_file="logs/piezo-genes-"+datestamp+".csv")
 
     MUTATIONS_dict={}
     MUTATIONS_counter=0
@@ -44,8 +47,6 @@ if __name__ == "__main__":
     datreant_file=piezo.VCFMeasurement(vcf_folder)
 
     (n_hom,n_het,n_ref,n_null)=sample_gene_collection.apply_vcf_file(options.vcf_file)
-
-    # (study,instance,UniqueID,site_id)=(sample_gene_collection.study,sample_gene_collection.instance,sample_gene_collection.UniqueID,sample_gene_collection.site_id)
 
     # store some useful features
     datreant_file.categories["GENOME_N_HOM"]=n_hom

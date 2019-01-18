@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 
 from datetime import datetime
-import logging, pathlib
+import logging
 
 import numpy
 
@@ -23,11 +23,8 @@ class Gene(object):
         # create an empty dict to store indels in later
         self.indels={}
 
-        # check the log folder exists (it probably does)
-        pathlib.Path('logs/').mkdir(parents=True, exist_ok=True)
-
         datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
-        logging.basicConfig(filename="logs/cryptic-genetics-gene-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
+        logging.basicConfig(filename="logs/piezo-gene-"+gene_name+"-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
         # how many nucleotides have we been given?
         self.number_coding_nucleotides=len(self.coding_nucleotides_string)

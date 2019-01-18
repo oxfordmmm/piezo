@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
-import pkg_resources, os, logging, pathlib
-from datetime import datetime
+import pkg_resources, os, logging
 
 import numpy, vcf
 from Bio import SeqIO
@@ -14,20 +13,13 @@ class GeneCollection(object):
 
     """Gene panel that contains several CRyPTIC gene objects"""
 
-    def __init__(self,species=None,genbank_file=None,database=None,study=None,gene_panel=None):
+    def __init__(self,species=None,genbank_file=None,log_file=None,gene_panel=None):
 
         # store the species name, study and instance
         self.species=species
-        self.database=database
-        self.study=study
-        self.instance=study
         self.gene_panel=gene_panel
 
-        # check the log folder exists (it probably does)
-        pathlib.Path('logs/').mkdir(parents=True, exist_ok=True)
-
-        datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
-        logging.basicConfig(filename="logs/"+self.database+"-"+self.study+"-cryptic-gene-collection-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
+        logging.basicConfig(filename=log_file,level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
         if self.species=="M. tuberculosis":
             # 4411532 is too small! This assumes no gene name has more than 7 characters
@@ -38,14 +30,7 @@ class GeneCollection(object):
         # remember the config path
         self.config_path = '/'.join(('..','config'))
 
-        # load and store the gene panel file in a dictionary
-        # self.gene_panel=self._read_genepanel_file(pkg_resources.resource_filename("cryptic", self.config_path+"/"+self.database+"-"+self.study+"-gene_panel.csv"))
-
-        # print((self.gene_panel))
-        # for i in self.gene_panel:
-        #     print(i, self.gene_panel[i])
-
-        self._parse_genbank_file(pkg_resources.resource_filename("cryptic", self.config_path+"/"+genbank_file))
+        self._parse_genbank_file(pkg_resources.resource_filename("piezo", self.config_path+"/"+genbank_file))
 
     def apply_vcf_file(self,vcf_file):
 
@@ -53,7 +38,7 @@ class GeneCollection(object):
         self.vcf_file=vcf_file
 
         # remember the folder path and the name of the passed VCF file
-        (self.vcf_folder,self.vcf_filename)=os.path.split(vcf_file)        
+        (self.vcf_folder,self.vcf_filename)=os.path.split(vcf_file)
 
         # find out what the species, lineage etc are
         (self.species,self.lineage,self.sublineage,self.lineage_percentage)=self._determine_lineage()

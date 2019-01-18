@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 
-import logging, pkg_resources, pathlib
-from datetime import datetime
+import logging, pkg_resources
 
 import pandas, numpy
 
@@ -9,7 +8,7 @@ from piezo import Gene
 
 class ResistanceCatalogue(object):
 
-    def __init__(self,input_file=None):
+    def __init__(self,input_file=None,log_file=None):
 
         # read in the Walker Resistance Catalogue and make a dictionary
         self.entry={}
@@ -25,14 +24,9 @@ class ResistanceCatalogue(object):
         # remember the config path
         self.config_path = '/'.join(('..','config'))
 
-        self._parse_catalogue_file(pkg_resources.resource_filename("cryptic", self.config_path+"/"+input_file))
+        self._parse_catalogue_file(pkg_resources.resource_filename("piezo", self.config_path+"/"+input_file))
 
-        # check the log folder exists (it probably does)
-        pathlib.Path('logs/').mkdir(parents=True, exist_ok=True)
-
-
-        datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
-        logging.basicConfig(filename="logs/cryptic-genetics-resistancecatalogue-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
+        logging.basicConfig(filename=log_file,level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
     def _parse_catalogue_file(self,input_file):
 
