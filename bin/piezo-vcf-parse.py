@@ -128,13 +128,17 @@ if __name__ == "__main__":
                 EFFECTS_dict[EFFECTS_counter]=[vcf_filename,gene_name,mutation_name,"UNK","U"]
                 EFFECTS_counter+=1
 
-    MUTATIONS=pandas.DataFrame.from_dict(MUTATIONS_dict,orient="index",columns=["FILENAME","GENE","MUTATION_TYPE","MUTATION","ELEMENT_TYPE","POSITION","PROMOTER","CDS","SYNONYMOUS","NONSYNONYMOUS","INSERTION","DELETION","REF","ALT","NUMBER_NUCLEOTIDE_CHANGES"])
-    MUTATIONS.set_index(["FILENAME","GENE","MUTATION"],inplace=True)
-    MUTATIONS.to_csv(sample_gene_collection.vcf_folder+"/mutations.csv")
 
-    EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["FILENAME","GENE","MUTATION","DRUG","PREDICTION"])
-    EFFECTS.set_index(["FILENAME","DRUG","GENE","MUTATION"],inplace=True)
-    EFFECTS.to_csv(sample_gene_collection.vcf_folder+"/effects.csv")
+    # FIXME: hacked to allow multiple samples to all write to the same CSVs
+    with open (sample_gene_collection.vcf_folder+"mutations.csv","a") as f:
+        MUTATIONS=pandas.DataFrame.from_dict(MUTATIONS_dict,orient="index",columns=["FILENAME","GENE","MUTATION_TYPE","MUTATION","ELEMENT_TYPE","POSITION","PROMOTER","CDS","SYNONYMOUS","NONSYNONYMOUS","INSERTION","DELETION","REF","ALT","NUMBER_NUCLEOTIDE_CHANGES"])
+        MUTATIONS.set_index(["FILENAME","GENE","MUTATION"],inplace=True)
+        MUTATIONS.to_csv(f,header=False)
+
+    with open (sample_gene_collection.vcf_folder+"effects.csv","a") as f:
+        EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["FILENAME","GENE","MUTATION","DRUG","PREDICTION"])
+        EFFECTS.set_index(["FILENAME","DRUG","GENE","MUTATION"],inplace=True)
+        EFFECTS.to_csv(f,header=False)
 
     wgs_prediction_string=""
     for drug in drug_list:
