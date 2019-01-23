@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--vcf_file",required=True,help="the path to a single VCF file")
-    parser.add_argument("--genbank",default="H37Rv.gbk",help="the genbank file of the H37Rv M. tuberculosis wildtype_gene_collection genome")
+    parser.add_argument("--genbank_file",default="H37Rv.gbk",help="the genbank file of the H37Rv M. tuberculosis wildtype_gene_collection genome")
     parser.add_argument("--resistance_catalogue",default="test_catalogue.csv",required=False,help="the path to the resistance catalogue")
     parser.add_argument("--verbose",action='store_true',default=False,help="whether to show progress using tqdm")
     options = parser.parse_args()
@@ -25,13 +25,13 @@ if __name__ == "__main__":
     datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
 
     # instantiate a Resistance Catalogue instance by passing a text file
-    walker_catalogue=piezo.ResistanceCatalogue(input_file=options.resistance_catalogue,log_file="logs/piezo-resistance-catalogue-"+datestamp+".csv")
+    walker_catalogue=piezo.ResistanceCatalogue(input_file=options.resistance_catalogue,log_file="logs/piezo-resistance-catalogue-"+datestamp+".csv",genbank_file=options.genbank_file)
 
     # retrieve the dictionary of genes from the Resistance Catalogue
     gene_panel=walker_catalogue.gene_panel
 
     # setup a GeneCollection object that contains all the genes/loci we are interested in
-    wildtype_gene_collection=piezo.GeneCollection(species="M. tuberculosis",genbank_file=options.genbank,gene_panel=gene_panel,log_file="logs/piezo-genes-"+datestamp+".csv")
+    wildtype_gene_collection=piezo.GeneCollection(species="M. tuberculosis",genbank_file=options.genbank_file,gene_panel=gene_panel,log_file="logs/piezo-genes-"+datestamp+".csv")
 
     MUTATIONS_dict={}
     MUTATIONS_counter=0

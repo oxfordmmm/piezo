@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import logging, pkg_resources
+import logging, pkg_resources, os
 
 import pandas, numpy
 
@@ -11,58 +11,97 @@ class ResistanceCatalogue(object):
 
     def __init__(self,input_file=None,log_file=None,genbank_file=None):
 
+        '''
+        Instantiate a ResistanceCatalogue
+
+        Args:
+            input_file (str): path to a resistance catalogue as a CSV file
+            genbank_file (str): path to the matching GenBank file describing the reference genome
+            log_file (str): path to a logfile
+        '''
+
         # read in the Walker Resistance Catalogue and make a dictionary
         self.entry={}
 
-        # remember the config path
-        self.config_path = '/'.join(('..','config'))
+        # instantiate a gemucator instance using the same GenBank file so we can validate the mutations later on
+        self.reference_genome=gemucator(genbank_file=os.path.abspath(genbank_file))
 
-        self.reference_genome=gemucator(genbank_file=genbank_file)
-
-        # self._parse_catalogue_file(pkg_resources.resource_filename("piezo", self.config_path+"/"+input_file))
+        # read in the catalogue file
         self._parse_catalogue_file(input_file)
 
+        # start logging using the provided log_file path
         logging.basicConfig(filename=log_file,level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
     def _parse_catalogue_file(self,input_file):
 
+        '''
+        Read in the Antimicrobial Resistance Catalogue.
+
+        Notes:
+            * Applies some checks to ensure the catalogue is in the right format.
+
+        Args:
+            input_file (str): path to a resistance catalogue as a CSV file
+        '''
+
+        # create some empty dictionaries
         self.gene_lookup={}
         self.drug_lookup={}
 
+        # use Pandas to read the catalogue into a DataFrame
         self.resistance_catalogue = pandas.read_csv(input_file)
 
+        # find out the number of rows
         self.number_rows = len(self.resistance_catalogue)
 
-        # be defensive
+        # be defensive and check these columns only contain what we think they should contain
         assert numpy.sum(self.resistance_catalogue["VARIANT_TYPE"].isin([numpy.nan,"SNP","INDEL"]))==self.number_rows, "TYPE column contains entries other than SNP or INDEL"
         assert numpy.sum(self.resistance_catalogue["VARIANT_AFFECTS"].isin([numpy.nan,'CDS','PROM','RNA']))==self.number_rows, "AFFECTS column contains entries other than CDS, PROM or RNA"
-        # assert numpy.sum(self.resistance_catalogue["PRED"].isin(['R','S','U']))==self.number_rows, "PRED column contains entries other than R, S or U"
 
+        # insist that there are no duplicated rows
         n_duplicated_rows=len(self.resistance_catalogue.loc[self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"],keep='first')])
         assert n_duplicated_rows==0, "There are duplicated rows in the catalogue!"
 
-        # self.resistance_catalogue=self.resistance_catalogue.loc[~self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"],keep='first')]
-
-        self.resistance_catalogue["GENE_MUTATION"]=self.resistance_catalogue["GENE"]+"_"+self.resistance_catalogue["MUTATION"]
-
+        # iterate through the gene names
         for gene_name in self.resistance_catalogue.GENE.unique():
+
+            # be defensive and check this gene exists in our reference
+            assert self.reference_genome.valid_gene(gene_name), gene_name+" does not exist in the supplied GenBank file!"
+
+            # select the rows matching this gene where a drug is specified
             tmp=self.resistance_catalogue.loc[(self.resistance_catalogue.GENE==gene_name) & (~self.resistance_catalogue.DRUG.isna())]
+
+            # if there are none, then this gene has been added to the catalogue without any associated drugs as we merely want to track its mutations
             if tmp.empty:
+
+                # in which case, record that no drugs are associated
                 self.gene_lookup[gene_name]=None
+
             else:
+
+                # otherwise record the drugs whose action can be affected by variation in this gene
                 self.gene_lookup[gene_name]=list(tmp.DRUG.unique())
 
+        # now we do it the other way round!
         for drug_name in self.resistance_catalogue.DRUG.unique():
+
+            # select the rows which match this drug
             tmp=self.resistance_catalogue.loc[self.resistance_catalogue.DRUG==drug_name]
+
+            # find out and record the genes
             self.drug_lookup[drug_name]=list(tmp.GENE.unique())
 
+        # record all the genes present in the catalogue as a simple list
+        # (this can include genes which have 'blank' rows for which no drug is yet associated)
         self.gene_list=list(self.resistance_catalogue.GENE.unique())
 
+        # finally,
         self.gene_panel={}
         foo=self.resistance_catalogue[["GENE","GENE_TYPE","MUTATION"]].groupby(["GENE","GENE_TYPE"]).count().to_dict()
         for i in foo['MUTATION']:
             self.gene_panel[i[0]]=i[1]
 
+        print(self.gene_panel)
 
     def predict(self,mutation=None,catalogue_name="CRYPTICv0.9"):
 
@@ -73,10 +112,10 @@ class ResistanceCatalogue(object):
         gene_name=components[0]
 
         # check that the gene exists!
-        assert reference_genome.valid_gene(gene_name), gene_name+" does not exist in the specified GENBANK file!"
+        assert self.reference_genome.valid_gene(gene_name), gene_name+" does not exist in the specified GENBANK file!"
 
         # check that the reference is valid
-        assert reference_genome.valid_mutation(mutation), "gene exists but "+mutation+" is badly formed; check the reference amino acid or nucleotide!"
+        assert self.reference_genome.valid_mutation(mutation), "gene exists but "+mutation+" is badly formed; check the reference amino acid or nucleotide!"
 
         if len(components)==2:
             mutation_type="SNP"

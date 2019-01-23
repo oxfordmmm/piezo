@@ -30,7 +30,8 @@ class GeneCollection(object):
         # remember the config path
         self.config_path = '/'.join(('..','config'))
 
-        self._parse_genbank_file(pkg_resources.resource_filename("piezo", self.config_path+"/"+genbank_file))
+        # self._parse_genbank_file(pkg_resources.resource_filename("piezo", self.config_path+"/"+genbank_file))
+        self._parse_genbank_file(genbank_file)
 
     def apply_vcf_file(self,vcf_file):
 
