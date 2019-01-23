@@ -5,16 +5,19 @@ import logging, pkg_resources
 import pandas, numpy
 
 from piezo import Gene
+from gemucator import gemucator
 
 class ResistanceCatalogue(object):
 
-    def __init__(self,input_file=None,log_file=None):
+    def __init__(self,input_file=None,log_file=None,genbank_file=None):
 
         # read in the Walker Resistance Catalogue and make a dictionary
         self.entry={}
 
         # remember the config path
         self.config_path = '/'.join(('..','config'))
+
+        self.reference_genome=gemucator(genbank_file=genbank_file)
 
         # self._parse_catalogue_file(pkg_resources.resource_filename("piezo", self.config_path+"/"+input_file))
         self._parse_catalogue_file(input_file)
@@ -69,6 +72,12 @@ class ResistanceCatalogue(object):
 
         gene_name=components[0]
 
+        # check that the gene exists!
+        assert reference_genome.valid_gene(gene_name), gene_name+" does not exist in the specified GENBANK file!"
+
+        # check that the reference is valid
+        assert reference_genome.valid_mutation(mutation), "gene exists but "+mutation+" is badly formed; check the reference amino acid or nucleotide!"
+
         if len(components)==2:
             mutation_type="SNP"
             before=components[1][:1]
@@ -86,7 +95,7 @@ class ResistanceCatalogue(object):
         elif len(components)==4:
             mutation_type="INDEL"
             position=int(components[1])
-            assert components[2] in ['ins','del'], "INDEL can only be ins or del, given "+mutation
+            assert components[2] in ['ins','del','indel','fs'], "INDEL can only be indel,ins,del or fs given "+mutation
             indel_type=components[2]
         else:
             raise ValueError("malformed mutation passed to predict: "+mutation)
@@ -127,12 +136,12 @@ class ResistanceCatalogue(object):
 
                     # check for wildtype matching rows
                     if mutation_type=="SNP":
-                        matching_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.GENE_MUTATION==gene_name+"_"+before+str(position)+"*") & (self.resistance_catalogue.DRUG==compound)]
+                        matching_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.GENE_MUTATION==gene_name+"_"+before+str(position)+"?") & (self.resistance_catalogue.DRUG==compound)]
                         if len(matching_rows)==1:
                             result[compound]=matching_rows[catalogue_name+"_PREDICTION"].values[0]
                             found_result=True
                     elif mutation_type=="INDEL":
-                        matching_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.GENE_MUTATION==gene_name+"_"+str(position)+"_"+indel_type+"_*") & (self.resistance_catalogue.DRUG==compound)]
+                        matching_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.GENE_MUTATION==gene_name+"_"+str(position)+"_"+indel_type+"_?") & (self.resistance_catalogue.DRUG==compound)]
                         if len(matching_rows)==1:
                             result[compound]=matching_rows[catalogue_name+"_PREDICTION"].values[0]
                             found_result=True
