@@ -5,8 +5,6 @@ import pkg_resources, os, logging
 import numpy, vcf
 from Bio import SeqIO
 
-from snpit import snpit
-
 import piezo
 
 class GeneCollection(object):

@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import logging, pkg_resources, os
+import logging, os
 
 import pandas, numpy
 
