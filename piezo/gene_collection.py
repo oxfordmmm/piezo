@@ -9,7 +9,7 @@ import piezo
 
 class GeneCollection(object):
 
-    """Gene panel that contains several CRyPTIC gene objects"""
+    """Gene panel class that contains several CRyPTIC gene objects"""
 
     def __init__(self,species=None,genbank_file=None,log_file=None,gene_panel=None):
 

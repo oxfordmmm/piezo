@@ -130,8 +130,7 @@ class ResistanceCatalogue(object):
             * mutations can be specified in a grammar that covers most of the known and expected genetic variants.
             * Stop codon is represented by "!"
             * "any mutation at position S315" (i.e. a wildcard) is represented by "?" e.g. S315?
-            *
-
+            * for more info see the walkthrough and also the NOMENCLATURE.md file
         '''
 
         # split the supplied mutation on _ which separates the components
@@ -335,6 +334,23 @@ class ResistanceCatalogue(object):
         return(result)
 
     def _parse_mutation(self,gene_mutation):
+        """
+        Take a GENE_MUTATION, and determine what type it is, what it affects etc
+
+        Args:
+            gene_mutation (str): the form as defined by GOARC e.g. rpoB_S450L or rpoB_1300_ins_3
+
+        Returns:
+            position (int): the position of the mutation. This is the amino acid number in a protein, or the number of the nucleotide in the promoter
+            variant_affects (str): whether this genetic variant affects the promoter (PROM), coding sequence (CDS)
+            variant_type (str): SNP or INDEL
+            indel_type (str): indel, ins, del or fs
+            indel_length (int): if sufficient information is given, the number of bases in the INDEL
+            indel_bases (str): if sufficient information is given, the bases in the INDEL
+            before (str): the REF amino acid
+            after (str): the ALT amino acid
+            
+        """
 
         variant_type=None
         variant_affects=None
