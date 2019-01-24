@@ -128,39 +128,28 @@ class ResistanceCatalogue(object):
         # the gene name is always the first component
         gene_name=components[0]
 
-        # check that the gene exists!
+        # # check that the gene exists!
         assert self.reference_genome.valid_gene(gene_name), gene_name+" does not exist in the specified GENBANK file!"
 
         # also check that the supplied mutation is valid
         assert self.reference_genome.valid_mutation(mutation), "gene exists but "+mutation+" is badly formed; check the reference amino acid or nucleotide!"
 
-        # if there are only 2 components, the variant must be a SNP
-        if len(components)==2:
+        print(self._parse_mutation(mutation))
 
-            mutation_type="SNP"
+        # parse the mutation to work out what type of mutation it is, where it acts etc
+        (position,variant_affects,variant_type,indel_length,indel_bases,before,after)=self._parse_mutation(mutation)
 
-            # since it is a SNP it will have the form S315T for an amino acid codon substitution or c-15t for a nucleotide substitution
-            before=components[1][:1]
-            position=int(components[1][1:-1])
-            after=components[1][-1:]
+        print(gene_name)
+        # do some checks
 
-            # insist we've been given an amino acid or a wildcard only
+        # insist we've been given an amino acid or a wildcard only
+        if variant_type=="SNP":
             assert after in ['a','c','t','g','x','z','?',"!",'A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not an amino acid or base!"
             assert before in ['a','c','t','g','x','z','?','!','A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], before+" is not an amino acid or base!"
 
-            # check the position isn't lower than -100
+        # check the position isn't lower than -100
+        if variant_affects=="INDEL" and position!="*":
             assert position>=-100, "promoter mutation too far from CDS; max allowed is -100, position is "+str(position)
-
-
-        elif len(components)==4:
-
-
-            mutation_type="INDEL"
-            position=int(components[1])
-            assert components[2] in ['ins','del','indel','fs'], "INDEL can only be indel, ins, del or fs given "+mutation
-            indel_type=components[2]
-        else:
-            raise ValueError("malformed mutation passed to predict: "+mutation)
 
         if gene_name not in self.gene_list:
 
@@ -184,38 +173,173 @@ class ResistanceCatalogue(object):
             # deal with each compound, one at a time
             for compound in drugs:
 
+                rules=self.resistance_catalogue.loc[(self.resistance_catalogue.GENE==gene_name) &
+                                           (self.resistance_catalogue.POSITION.isin([str(position),'*'])) &
+                                           (self.resistance_catalogue.DRUG==compound) &
+                                           (self.resistance_catalogue.VARIANT_AFFECTS==variant_affects) &
+                                           (self.resistance_catalogue.VARIANT_TYPE==variant_type) &
+                                           (self.resistance_catalogue[catalogue_name+"_PREDICTION"].isin(["R","S","U"]))]
+
+                print(rules)
+
                 same_position_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.POSITION==position) & (self.resistance_catalogue.DRUG==compound)]
 
-                # if the mutation is synonmous, just return SUSCEPTIBLE
-                if mutation_type=="SNP" and before==after:
-                    result[compound]="S"
+                # prepare a dictionary to store hits with the priority as the key:  e.g. {10:'R',5:'U'}
+                predictions={}
 
-                elif len(same_position_rows)==0:
-                    result[compound]="U"
+                if not rules.empty:
+                    if variant_type=="SNP":
 
+                        # PRIORITY=1: synonymous mutation at any position in the CDS (e.g. rpoB_*=)
+                        row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION=="*=") & (before==after)]
+                        if not row.empty:
+                            predictions[1]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        # PRIORITY=10: nonsynoymous mutation at any position in the CDS or PROM (e.g. rpoB_*? or rpoB_-*?)
+                        if variant_affects=="CDS":
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION=="*?") & (before!=after)]
+                        else:
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION=="-*?") & (before!=after)]
+                        if not row.empty:
+                            predictions[10]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        # PRIORITY=100: any nonsynoymous mutation at this specific position in the CDS or PROM  (e.g. rpoB_S450? or rpoB_c-15?)
+                        row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.POSITION==str(position)) & (before!=after) & (rules.MUTATION.str[-1]=="?")]
+                        if not row.empty:
+                            predictions[100]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        # PRIORITY=1000: an exact match
+                        row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION==mutation)]
+                        if not row.empty:
+                            predictions[1000]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                    elif variant_type=="INDEL":
+
+                        # PRIORITY 5: any insertion or deletion in the CDS or PROM (e.g. rpoB_*_indel or rpoB_-*_indel)
+                        if variant_affects=="CDS":
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION=="*_indel")]
+                        else:
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION=="-*_indel")]
+                        if not row.empty:
+                            predictions[5]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        # PRIORITY 50: rpoB_*_ins, rpoB_*_del any insertion (or deletion) in the CDS or PROM
+                        if variant_affects=="CDS":
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION.isin(["*_ins","*_del"]))]
+                        else:
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION.isin(["-*_ins","-*_del"]))]
+                        if not row.empty:
+                            predictions[50]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        # PRIORITY 500: any insertion of a specified length (or deletion) in the CDS or PROM (e.g. rpoB_*_ins_2, rpoB_*_del_3, rpoB_-*_ins_1, rpoB_-*_del_200)
+                        if indel_length is not None and indel_type!="indel":
+                            if variant_affects=="CDS":
+                                row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION.isin(["*_"+indel_type+"_"+str(indel_length)]))]
+                            else:
+                                row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION.isin(["-*_"+indel_type+"_"+str(indel_length)]))]
+                            if not row.empty:
+                                predictions[500]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        # PRIORITY=5,000:any frameshifting insertion or deletion in the CDS (e.g. rpoB_*_fs)
+                        if indel_length is not None and (indel_length%3)==0:
+                            print("FS")
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION=="*_fs")]
+                            if not row.empty:
+                                predictions[5E3]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        # PRIORITY=50,000: any indel at a specific position in the CDS or PROM (e.g. rpoB_1300_indel or rpoB_-15_indel)
+                        row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.POSITION==str(position)) & (rules.MUTATION.str.contains("indel"))]
+                        if not row.empty:
+                            predictions[5E4]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        # PRIORITY=500,000 any insertion (or deletion) at a specific position in the CDS or PROM (e.g. rpoB_1300_ins or rpoB_-15_del)
+                        if indel_type!="indel":
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.POSITION==str(position)) & (rules.MUTATION.str.contains(indel_type))]
+                            if not row.empty:
+                                predictions[5E5]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        # PRIORITY=500000 any insertion (or deletion) of a specified length at a specific position in the CDS or PROM (e.g. rpoB_1300_ins or rpoB_-15_del)
+                        if indel_type!="indel" and indel_length is not None:
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.POSITION==str(position)) & (rules.MUTATION==str(position)+"_"+indel_type+"_"+str(indel_length))]
+                            if not row.empty:
+                                predictions[5E6]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        if indel_length is not None and (indel_length%3)==0 and position is not None:
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.POSITION==str(position)) & (rules.MUTATION==str(position)+"_fs")]
+                            if not row.empty:
+                                predictions[5E7]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                        #rpoB_1300_ins_ca insertion of bases ca at position 1300 in the CDS (does not make sense for deletions)
+                        if indel_type!="indel" and indel_length is not None and indel_bases is not None:
+                            row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.POSITION==str(position)) & (rules.MUTATION==str(position)+"_"+indel_type+"_"+str(indel_length)+"_"+indel_bases)]
+                            if not row.empty:
+                                predictions[5E8]=str(row[catalogue_name+"_PREDICTION"].values[0])
+
+                print(predictions)
+
+                # if the dictionary is not empty, store the result with the highest priority
+                if not predictions:
+                    print("no match in catalog, defaulting to U")
+                    final_prediction="U"                    
                 else:
-                    found_result=False
+                    final_prediction=predictions[sorted(predictions)[-1]]
+                    # raise ValueError("No entry found in the catalogue for "+mutation)
 
-                    # check for wildtype matching rows
-                    if mutation_type=="SNP":
-                        matching_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.GENE_MUTATION==gene_name+"_"+before+str(position)+"?") & (self.resistance_catalogue.DRUG==compound)]
-                        if len(matching_rows)==1:
-                            result[compound]=matching_rows[catalogue_name+"_PREDICTION"].values[0]
-                            found_result=True
-                    elif mutation_type=="INDEL":
-                        matching_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.GENE_MUTATION==gene_name+"_"+str(position)+"_"+indel_type+"_?") & (self.resistance_catalogue.DRUG==compound)]
-                        if len(matching_rows)==1:
-                            result[compound]=matching_rows[catalogue_name+"_PREDICTION"].values[0]
-                            found_result=True
+                result[compound]=final_prediction
 
-                    # otherwise look for an exact match
-                    matching_rows = self.resistance_catalogue.loc[(self.resistance_catalogue.GENE_MUTATION==mutation) & (self.resistance_catalogue.DRUG==compound)]
-                    if len(matching_rows)==1:
-                        result[compound]=matching_rows[catalogue_name+"_PREDICTION"].values[0]
-                        found_result=True
-
-                    # otherwise there is no match in the catalogue at this position, return UNKNOWN
-                    if not found_result:
-                        result[compound]="U"
 
         return(result)
+
+    def _parse_mutation(self,gene_mutation):
+
+        variant_type=None
+        variant_affects=None
+        position=None
+        indel_length=None
+        indel_bases=None
+        before=None
+        after=None
+
+        cols=gene_mutation.split("_")
+
+
+        if len(cols)==2:
+
+            variant_type="SNP"
+
+            mutation=cols[1]
+
+            position=int(mutation[1:-1])
+            if position<0:
+                variant_affects="PROM"
+            else:
+                variant_affects="CDS"
+
+            before=mutation[0]
+            after=mutation[-1]
+
+        elif len(cols) in [3,4]:
+
+            variant_type="INDEL"
+            before=None
+            after=None
+
+            position=int(cols[1])
+            if position<0:
+                variant_affects="PROM"
+            else:
+                variant_affects="CDS"
+
+            # the third element is one of indel, ins, del or the special case fs
+            indel_type=cols[2]
+
+            # if there is a fourth and final element to an INDEL it is either _4 or _ctgc
+            if len(cols)==4:
+                if cols[3].isnumeric():
+                    indel_length=int(cols[3])
+                    indel_bases=None
+                else:
+                    indel_length=len(cols[3])
+                    indel_bases=cols[3]
+
+        return(position,variant_affects,variant_type,indel_length,indel_bases,before,after)
