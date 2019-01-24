@@ -1,5 +1,6 @@
 .DS_Store
 *.json
+*.proxy
 *effects.csv
 *mutations.csv
 # Byte-compiled / optimized / DLL files
