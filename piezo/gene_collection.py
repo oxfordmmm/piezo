@@ -41,9 +41,6 @@ class GeneCollection(object):
         # remember the folder path and the name of the passed VCF file
         (self.vcf_folder,self.vcf_filename)=os.path.split(vcf_file)
 
-        # find out what the species, lineage etc are
-        (self.species,self.lineage,self.sublineage,self.lineage_percentage)=self._determine_lineage()
-
         n_null=0
         n_het=0
         n_ref=0
@@ -241,12 +238,6 @@ class GeneCollection(object):
                     # create a Gene object defined using the above information
                     self.gene[gene_name]=piezo.Gene(gene_name=gene_name,coding_nucleotides=coding_nucleotides_string,promoter_nucleotides=promoter_nucleotides_string,first_nucleotide_index=first_nucleotide_index,first_amino_acid_position=first_amino_acid_position,reverse=reverse,element_type=self.gene_panel[gene_name])
 
-
-    def _determine_lineage(self):
-
-        tb=snpit(input_file=self.vcf_file)
-
-        return (tb.species,tb.lineage,tb.sublineage,tb.percentage)
 
     def _parse_vcf_filename(self,filename):
 

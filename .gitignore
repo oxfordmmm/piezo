@@ -1,7 +1,7 @@
 .DS_Store
 *.json
-effects.csv
-mutations.csv
+*effects.csv
+*mutations.csv
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

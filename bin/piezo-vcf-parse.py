@@ -8,6 +8,7 @@ import pandas
 from tqdm import tqdm
 
 import piezo
+import snpit
 
 if __name__ == "__main__":
 
@@ -15,6 +16,7 @@ if __name__ == "__main__":
     parser.add_argument("--vcf_file",required=True,help="the path to a single VCF file")
     parser.add_argument("--genbank_file",default="H37Rv.gbk",help="the genbank file of the H37Rv M. tuberculosis wildtype_gene_collection genome")
     parser.add_argument("--resistance_catalogue",default="test_catalogue.csv",required=False,help="the path to the resistance catalogue")
+    parser.add_argument("--catalogue_name",default="NEJM2018",required=False,help="the name of the required catalogue, as defined in the resistance catalogue")
     parser.add_argument("--verbose",action='store_true',default=False,help="whether to show progress using tqdm")
     options = parser.parse_args()
 
@@ -25,7 +27,10 @@ if __name__ == "__main__":
     datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
 
     # instantiate a Resistance Catalogue instance by passing a text file
-    walker_catalogue=piezo.ResistanceCatalogue(input_file=options.resistance_catalogue,log_file="logs/piezo-resistance-catalogue-"+datestamp+".csv",genbank_file=options.genbank_file)
+    walker_catalogue=piezo.ResistanceCatalogue( input_file=options.resistance_catalogue,
+                                                log_file="logs/piezo-resistance-catalogue-"+datestamp+".csv",
+                                                genbank_file=options.genbank_file,
+                                                catalogue_name=options.catalogue_name )
 
     # retrieve the dictionary of genes from the Resistance Catalogue
     gene_panel=walker_catalogue.gene_panel
@@ -38,42 +43,38 @@ if __name__ == "__main__":
     EFFECTS_dict={}
     EFFECTS_counter=0
 
-    # define the list of drugs
-    # ordered as
-    # 1st line: R,I,P,E
-    # 2nd line: aminoglycosides (AMI, KAN), fluroquinolones (LEV, MXF), ETH, PAS
-    # 3rd line: RFB, LZD, BDQ, DLM
-    # Repurposed: CFZ
-    drug_list=["RIF","INH","PZA","EMB","AMI","KAN","LEV","MXF","ETH","PAS","RFB","LZD","BDQ","DLM","CFZ"]
-
     # create a copy of the wildtype_gene_collection genes which we will then alter according to the VCF file
     # need a deepcopy to ensure we take all the private variables etc with us, and point just take pointers
     sample_gene_collection=deepcopy(wildtype_gene_collection)
 
     (vcf_folder,vcf_filename)=os.path.split(options.vcf_file)
 
-    # find and load the Datreant object created when the VCF was moved into place
-    datreant_file=piezo.VCFMeasurement(vcf_folder)
+    vcf_stem=options.vcf_file.split(".vcf")[0]
+
+    metadata={}
 
     (n_hom,n_het,n_ref,n_null)=sample_gene_collection.apply_vcf_file(options.vcf_file)
 
+    # call snpit to work out the specific species of Mycobacteria
+    tb=snpit.snpit(input_file=options.vcf_file)
+
     # store some useful features
-    datreant_file.categories["GENOME_N_HOM"]=n_hom
-    datreant_file.categories["GENOME_N_HET"]=n_het
-    datreant_file.categories["GENOME_N_REF"]=n_ref
-    datreant_file.categories["GENOME_N_NULL"]=n_null
-    datreant_file.categories["SPECIES"]=sample_gene_collection.species
-    datreant_file.categories["LINEAGE"]=sample_gene_collection.lineage
-    datreant_file.categories["SUBLINEAGE"]=sample_gene_collection.sublineage
-    datreant_file.categories["LINEAGE_PERCENTAGE"]=sample_gene_collection.lineage_percentage
+    metadata["GENOME_N_HOM"]=n_hom
+    metadata["GENOME_N_HET"]=n_het
+    metadata["GENOME_N_REF"]=n_ref
+    metadata["GENOME_N_NULL"]=n_null
+    metadata["SNPIT_SPECIES"]=tb.species
+    metadata["SNPIT_LINEAGE"]=tb.lineage
+    metadata["SNPIT_SUBLINEAGE"]=tb.sublineage
+    metadata["SNPIT_LINEAGE_PERCENTAGE"]="%.1f %%" % tb.percentage
 
     # by default assume wildtype behaviour so set all drug phenotypes to be susceptible
     phenotype={}
-    for drug in drug_list:
+    for drug in walker_catalogue.drug_list:
         phenotype[drug]="S"
 
     # now get all the genes to calculate their own differences w.r.t the references, i.e. their mutations!
-    for gene_name in tqdm(wildtype_gene_collection.gene_panel):
+    for gene_name in wildtype_gene_collection.gene_panel:
 
         # now we pass the wildtype_gene_collection gene so our VCF gene can calculate its mutations
         sample_gene_collection.gene[gene_name].identify_mutations(wildtype_gene_collection.gene[gene_name])
@@ -100,7 +101,7 @@ if __name__ == "__main__":
             MUTATIONS_counter+=1
 
 
-            prediction=walker_catalogue.predict(mutation=gene_name+"_"+mutation_name)
+            prediction=walker_catalogue.predict(gene_mutation=gene_name+"_"+mutation_name,verbose=options.verbose)
 
             # if it isn't an S, then a dictionary must have been returned
             if prediction!="S":
@@ -129,32 +130,21 @@ if __name__ == "__main__":
                 EFFECTS_counter+=1
 
 
-    # FIXME: hacked to allow multiple samples to all write to the same CSVs
-    with open (sample_gene_collection.vcf_folder+"mutations.csv","a") as f:
-        MUTATIONS=pandas.DataFrame.from_dict(MUTATIONS_dict,orient="index",columns=["FILENAME","GENE","MUTATION_TYPE","MUTATION","ELEMENT_TYPE","POSITION","PROMOTER","CDS","SYNONYMOUS","NONSYNONYMOUS","INSERTION","DELETION","REF","ALT","NUMBER_NUCLEOTIDE_CHANGES"])
-        MUTATIONS.set_index(["FILENAME","GENE","MUTATION"],inplace=True)
-        MUTATIONS.to_csv(f,header=False)
+    MUTATIONS=pandas.DataFrame.from_dict(MUTATIONS_dict,orient="index",columns=["FILENAME","GENE","MUTATION_TYPE","MUTATION","ELEMENT_TYPE","POSITION","PROMOTER","CDS","SYNONYMOUS","NONSYNONYMOUS","INSERTION","DELETION","REF","ALT","NUMBER_NUCLEOTIDE_CHANGES"])
+    MUTATIONS.set_index(["FILENAME","GENE","MUTATION"],inplace=True)
+    MUTATIONS.to_csv(vcf_stem+"-mutations.csv",header=False)
 
-    with open (sample_gene_collection.vcf_folder+"effects.csv","a") as f:
-        EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["FILENAME","GENE","MUTATION","DRUG","PREDICTION"])
-        EFFECTS.set_index(["FILENAME","DRUG","GENE","MUTATION"],inplace=True)
-        EFFECTS.to_csv(f,header=False)
+    EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["FILENAME","GENE","MUTATION","DRUG","PREDICTION"])
+    EFFECTS.set_index(["FILENAME","DRUG","GENE","MUTATION"],inplace=True)
+    EFFECTS.to_csv(vcf_stem+"-effects.csv",header=False)
 
     wgs_prediction_string=""
-    for drug in drug_list:
-        datreant_file.categories["WGS_PREDICTION_"+drug]=phenotype[drug]
-        wgs_prediction_string+=phenotype[drug]
-    datreant_file.categories["WGS_PREDICTION_STRING"]=wgs_prediction_string
+    for drug in walker_catalogue.drug_list:
+        metadata["WGS_PREDICTION_"+drug]=phenotype[drug]
 
-    tb_type_1="MDR"
-    if datreant_file.categories["WGS_PREDICTION_INH"]=="R" and datreant_file.categories["WGS_PREDICTION_RIF"]=="R":
-        if (datreant_file.categories["WGS_PREDICTION_MXF"]=="R" or datreant_file.categories["WGS_PREDICTION_LEV"]=="R") and (datreant_file.categories["WGS_PREDICTION_AMI"]=="R" or datreant_file.categories["WGS_PREDICTION_KAN"]=="R"):
-            tb_type_1="XDR"
-        else:
-            tb_type_1="MDR"
-    elif datreant_file.categories["WGS_PREDICTION_RIF"]=="R":
-        tb_type_1="RIF"
-    else:
-        tb_type_1="SUS"
-
-    datreant_file.categories["TB_TYPE_1"]=tb_type_1
+    print("%40s %s" % ("VCF file", options.vcf_file))
+    print("%40s %s" % ("Catalogue", options.resistance_catalogue))
+    print("%40s %s" % ("Catalogue_name", options.catalogue_name))
+    print("%40s %s" % ("Genbank file", options.genbank_file))
+    for i in sorted(metadata):
+        print("%40s %s" % (i, metadata[i]))
