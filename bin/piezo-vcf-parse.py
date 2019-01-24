@@ -16,7 +16,7 @@ if __name__ == "__main__":
     parser.add_argument("--vcf_file",required=True,help="the path to a single VCF file")
     parser.add_argument("--genbank_file",default="H37Rv.gbk",help="the genbank file of the H37Rv M. tuberculosis wildtype_gene_collection genome")
     parser.add_argument("--resistance_catalogue",default="test_catalogue.csv",required=False,help="the path to the resistance catalogue")
-    parser.add_argument("--catalogue_name",default="NEJM2018",required=False,help="the name of the required catalogue, as defined in the resistance catalogue")
+    parser.add_argument("--catalogue_name",default="LID2015B",required=False,help="the name of the required catalogue, as defined in the resistance catalogue")
     parser.add_argument("--verbose",action='store_true',default=False,help="whether to show progress using tqdm")
     options = parser.parse_args()
 
@@ -38,10 +38,6 @@ if __name__ == "__main__":
     # setup a GeneCollection object that contains all the genes/loci we are interested in
     wildtype_gene_collection=piezo.GeneCollection(species="M. tuberculosis",genbank_file=options.genbank_file,gene_panel=gene_panel,log_file="logs/piezo-genes-"+datestamp+".csv")
 
-    MUTATIONS_dict={}
-    MUTATIONS_counter=0
-    EFFECTS_dict={}
-    EFFECTS_counter=0
 
     # create a copy of the wildtype_gene_collection genes which we will then alter according to the VCF file
     # need a deepcopy to ensure we take all the private variables etc with us, and point just take pointers
@@ -72,6 +68,11 @@ if __name__ == "__main__":
     phenotype={}
     for drug in walker_catalogue.drug_list:
         phenotype[drug]="S"
+
+    MUTATIONS_dict={}
+    MUTATIONS_counter=0
+    EFFECTS_dict={}
+    EFFECTS_counter=0
 
     # now get all the genes to calculate their own differences w.r.t the references, i.e. their mutations!
     for gene_name in wildtype_gene_collection.gene_panel:

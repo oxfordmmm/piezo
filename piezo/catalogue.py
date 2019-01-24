@@ -9,7 +9,7 @@ from gemucator import gemucator
 
 class ResistanceCatalogue(object):
 
-    def __init__(self,input_file=None,log_file=None,genbank_file=None,catalogue_name="NEJM2018"):
+    def __init__(self,input_file=None,log_file=None,genbank_file=None,catalogue_name="LID2015B"):
 
         '''
         Instantiate a ResistanceCatalogue
@@ -54,7 +54,7 @@ class ResistanceCatalogue(object):
         self.resistance_catalogue = pandas.read_csv(input_file)
 
         # ensure that the specified catalogue has a column
-        assert self.catalogue_name+"_PREDICTION" in self.resistance_catalogue.columns, "specified catalogue does not have a column in the loaded Resistance Catalogue!"
+        assert self.catalogue_name+"_PREDICTION" in self.resistance_catalogue.columns, "specified catalogue "+self.catalogue_name+" does not have a column in the loaded Resistance Catalogue!"
 
         # only pull out genes which have at least one R row
         relevant_genes=self.resistance_catalogue.loc[self.resistance_catalogue[self.catalogue_name+"_PREDICTION"].isin(['R'])].GENE.unique()
