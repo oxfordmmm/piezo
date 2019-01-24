@@ -37,11 +37,11 @@ class ResistanceCatalogue(object):
         '''
         Read in the Antimicrobial Resistance Catalogue.
 
-        Notes:
-            * Applies some checks to ensure the catalogue is in the right format.
-
         Args:
             input_file (str): path to a resistance catalogue as a CSV file
+
+        Notes:
+            * Applies some checks to ensure the catalogue is in the right format.
         '''
 
         # create some empty dictionaries
@@ -103,38 +103,61 @@ class ResistanceCatalogue(object):
 
         print(self.gene_panel)
 
-    def predict(self,mutation=None,catalogue_name="CRYPTICv0.9"):
+    def predict(self,mutation=None,catalogue_name="NEJM2018"):
+        '''
+        Predict the effect of the given mutation on one or more antimicrobials.
 
+        Args:
+            mutation (str): a genetic variant in the form GENE_MUTATION e.g. for a SNP katG_S315T, INDEL katG_315_indel.
+
+        Notes:
+            * mutations can be specified in a grammar that covers most of the known and expected genetic variants.
+            * Stop codon is represented by "!"
+            * "any mutation at position S315" (i.e. a wildcard) is represented by "?" e.g. S315?
+            *
+
+
+        '''
+
+        # ensure that the specified catalogue has a column
         assert catalogue_name+"_PREDICTION" in self.resistance_catalogue.columns, "specified catalogue does not have a column in the loaded Resistance Catalogue!"
 
+        # split the supplied mutation on _ which separates the components
         components=mutation.split("_")
 
+        # the gene name is always the first component
         gene_name=components[0]
 
         # check that the gene exists!
         assert self.reference_genome.valid_gene(gene_name), gene_name+" does not exist in the specified GENBANK file!"
 
-        # check that the reference is valid
+        # also check that the supplied mutation is valid
         assert self.reference_genome.valid_mutation(mutation), "gene exists but "+mutation+" is badly formed; check the reference amino acid or nucleotide!"
 
+        # if there are only 2 components, the variant must be a SNP
         if len(components)==2:
+
             mutation_type="SNP"
+
+            # since it is a SNP it will have the form S315T for an amino acid codon substitution or c-15t for a nucleotide substitution
             before=components[1][:1]
-            after=components[1][-1:]
             position=int(components[1][1:-1])
+            after=components[1][-1:]
 
             # insist we've been given an amino acid or a wildcard only
-            assert after in ['a','c','t','g','x','z','*',"!",'A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not an amino acid or base!"
-            assert before in ['a','c','t','g','x','z','*','!','A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], before+" is not an amino acid or base!"
+            assert after in ['a','c','t','g','x','z','?',"!",'A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not an amino acid or base!"
+            assert before in ['a','c','t','g','x','z','?','!','A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], before+" is not an amino acid or base!"
 
             # check the position isn't lower than -100
             assert position>=-100, "promoter mutation too far from CDS; max allowed is -100, position is "+str(position)
 
 
         elif len(components)==4:
+
+
             mutation_type="INDEL"
             position=int(components[1])
-            assert components[2] in ['ins','del','indel','fs'], "INDEL can only be indel,ins,del or fs given "+mutation
+            assert components[2] in ['ins','del','indel','fs'], "INDEL can only be indel, ins, del or fs given "+mutation
             indel_type=components[2]
         else:
             raise ValueError("malformed mutation passed to predict: "+mutation)
