@@ -214,7 +214,7 @@ class ResistanceCatalogue(object):
                                 print("1. "+predictions[1]+" syn SNP at any position in the CDS")
 
                         # PRIORITY=10: nonsynoymous mutation at any position in the CDS or PROM (e.g. rpoB_*? or rpoB_-*?)
-                        if variant_affects=="CDS":
+                        if variant_affects in ["CDS","RNA"]:
                             row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION=="*?") & (before!=after)]
                         else:
                             row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION=="-*?") & (before!=after)]
@@ -240,7 +240,7 @@ class ResistanceCatalogue(object):
                     elif variant_type=="INDEL":
 
                         # PRIORITY 1: any insertion or deletion in the CDS or PROM (e.g. rpoB_*_indel or rpoB_-*_indel)
-                        if variant_affects=="CDS":
+                        if variant_affects in ["CDS","RNA"]:
                             row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION=="*_indel")]
                         else:
                             row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION=="-*_indel")]
@@ -250,7 +250,7 @@ class ResistanceCatalogue(object):
                                 print("1. "+predictions[1]+" any insertion or deletion in the CDS or PROM")
 
                         # PRIORITY 2: rpoB_*_ins, rpoB_*_del any insertion (or deletion) in the CDS or PROM
-                        if variant_affects=="CDS":
+                        if variant_affects in ["CDS","RNA"]:
                             row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION.isin(["*_ins","*_del"]))]
                         else:
                             row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION.isin(["-*_ins","-*_del"]))]
@@ -261,7 +261,7 @@ class ResistanceCatalogue(object):
 
                         # PRIORITY 3: any insertion of a specified length (or deletion) in the CDS or PROM (e.g. rpoB_*_ins_2, rpoB_*_del_3, rpoB_-*_ins_1, rpoB_-*_del_200)
                         if indel_length is not None and indel_type!="indel":
-                            if variant_affects=="CDS":
+                            if variant_affects in ["CDS","RNA"]:
                                 row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION.isin(["*_"+indel_type+"_"+str(indel_length)]))]
                             else:
                                 row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.MUTATION.isin(["-*_"+indel_type+"_"+str(indel_length)]))]
@@ -349,7 +349,7 @@ class ResistanceCatalogue(object):
             indel_bases (str): if sufficient information is given, the bases in the INDEL
             before (str): the REF amino acid
             after (str): the ALT amino acid
-            
+
         """
 
         variant_type=None
@@ -373,7 +373,10 @@ class ResistanceCatalogue(object):
             if position<0:
                 variant_affects="PROM"
             else:
-                variant_affects="CDS"
+                if self.reference_genome.gene_type(cols[0])=='RNA':
+                    variant_affects="RNA"
+                else:
+                    variant_affects="CDS"
 
             before=mutation[0]
             after=mutation[-1]
@@ -388,7 +391,10 @@ class ResistanceCatalogue(object):
             if position<0:
                 variant_affects="PROM"
             else:
-                variant_affects="CDS"
+                if self.reference_genome.gene_type(cols[0])=='RNA':
+                    variant_affects="RNA"
+                else:
+                    variant_affects="CDS"
 
             # the third element is one of indel, ins, del or the special case fs
             indel_type=cols[2]
