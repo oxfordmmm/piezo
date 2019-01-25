@@ -14,8 +14,7 @@ setup(
         "datreant >= 1.0.2",
         "PyVCF >= 0.6.8",
         "Biopython >= 1.70",
-        "tqdm >= 4.19.5",
-        "snpit >= 1.0.0",\
+        "tqdm >= 4.19.5"
     ],
     license='MIT',
     scripts=['bin/piezo-vcf-parse.py'],
