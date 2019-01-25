@@ -28,9 +28,11 @@ Everything is Python3.
 
 2. [snpit](https://github.com/philipwfowler/snpit). This is Class based version of Sam Lipworth's SNP-IT code. It is only used in the `bin/piezo-vcf-parse.py` example and can be easily removed. Again, you'll need to clone and install first.
 
-3. [datreant](https://datreant.readthedocs.io/en/latest/). Is used heavily in CRyPTIC and not used so much here. I probably could cut it out, but I like it... Is on Pypi so should automatically install.
+3. [datreant](https://datreant.readthedocs.io/en/latest/). Is used heavily in CRyPTIC and not used so much here. I probably could cut it out, but I like it... Best to install via pip3
 
-4. Everything else is fairly standard / should be installed by the `setup.py`
+`$ pip3 install datreant --user`
+
+4. Everything else is fairly standard / should be installed by the `setup.py` if you don't already have it
 * pandas
 * numpy
 * PyVCF
