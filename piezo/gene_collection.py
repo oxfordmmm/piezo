@@ -130,6 +130,8 @@ class GeneCollection(object):
                             # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
                             self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after)
 
+                            assert before!=after, "bases the same in "+row
+                            
                             # increment the position in the genome
                             position+=1
 

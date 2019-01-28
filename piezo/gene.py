@@ -35,6 +35,8 @@ class Gene(object):
         self.number_promoter_nucleotides=len(self.promoter_nucleotides_string)
         self.promoter_nucleotides_position=numpy.arange(-1*(self.number_promoter_nucleotides),0,1)
 
+        print(self.gene_name,self.reverse) #PWF
+
         if self.reverse:
             self.promoter_nucleotide_index=numpy.array([i for i in range (self.last_nucleotide_index,self.last_nucleotide_index+self.number_promoter_nucleotides,1)])
         else:
@@ -137,6 +139,8 @@ class Gene(object):
 
         assert new_base.lower() in ['a','c','t','g','x','z'], "not been given a nucleotide!"
 
+        assert original_base!=new_base, "not a mutation!"
+
         # is the position in the coding sequence or the promoter?
         if (position in self.coding_nucleotide_index):
 
@@ -167,7 +171,7 @@ class Gene(object):
             assert numpy.sum(location)==1, "WARNING: trying to mutate "+self.gene_name+" at position "+str(position)+" from "+original_base+" to "+new_base+" and the mask has "+str(numpy.sum(location))+" locations"
 
             # check that it is actually a mutation!
-            # assert self.promoter_nucleotides[location]!=new_base.lower(),  "new base is also "+new_base
+            assert self.promoter_nucleotides[location]!=new_base.lower(),  "new base is also "+new_base
 
             # mutate to the new base
             self.promoter_nucleotides[location]=new_base.lower()
@@ -219,8 +223,13 @@ class Gene(object):
 
         promoter_mutation_mask=self.promoter_sequence!=reference.promoter_sequence
 
-        self.mutation_ref=reference.promoter_nucleotides[promoter_mutation_mask]
-        self.mutation_new=self.promoter_nucleotides[promoter_mutation_mask]
+        # self.mutation_ref=reference.promoter_nucleotides[promoter_mutation_mask]
+        # self.mutation_new=self.promoter_nucleotides[promoter_mutation_mask]
+        # self.mutation_pos=self.promoter_nucleotides_position[promoter_mutation_mask]
+
+# it had better not be this!
+        self.mutation_ref=reference.promoter_sequence[promoter_mutation_mask]
+        self.mutation_new=self.promoter_sequence[promoter_mutation_mask]
         self.mutation_pos=self.promoter_nucleotides_position[promoter_mutation_mask]
 
         if self.element_type in ['GENE','LOCUS']:
@@ -239,6 +248,22 @@ class Gene(object):
             self.mutation_ref=numpy.append(self.mutation_ref,reference.coding_nucleotides[coding_mutation_mask])
             self.mutation_new=numpy.append(self.mutation_new,self.coding_nucleotides[coding_mutation_mask])
             self.mutation_pos=numpy.append(self.mutation_pos,self.coding_nucleotides_position[coding_mutation_mask])
+
+        if self.gene_name=="Rv1258c":
+            print("promoter_nucleotides")
+            print(reference.promoter_nucleotides)
+            print(self.promoter_nucleotides)
+            print(reference.promoter_nucleotides[promoter_mutation_mask])
+            print(self.promoter_nucleotides[promoter_mutation_mask])
+            print("promoter_sequence")
+            print(reference.promoter_sequence)
+            print(self.promoter_sequence)
+            print(reference.promoter_sequence[promoter_mutation_mask])
+            print(self.promoter_sequence[promoter_mutation_mask])
+            print("final")
+            print(self.mutation_ref)
+            print(self.mutation_new)
+            print(self.mutation_pos)
 
         for i in self.indels:
 
@@ -288,6 +313,8 @@ class Gene(object):
                 # before=None
                 # after=None
                 number_nucleotide_changes=1
+
+                assert before!=after
 
             else:
 

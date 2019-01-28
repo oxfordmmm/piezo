@@ -57,7 +57,7 @@ class ResistanceCatalogue(object):
         assert self.catalogue_name+"_PREDICTION" in self.resistance_catalogue.columns, "specified catalogue "+self.catalogue_name+" does not have a column in the loaded Resistance Catalogue!"
 
         # only pull out genes which have at least one R row
-        relevant_genes=self.resistance_catalogue.loc[self.resistance_catalogue[self.catalogue_name+"_PREDICTION"].isin(['R'])].GENE.unique()
+        relevant_genes=self.resistance_catalogue.loc[self.resistance_catalogue[self.catalogue_name+"_PREDICTION"].isin(['S','U','R'])].GENE.unique()
 
         # downsample the catalogue to include include rows which have definite R/S/U and genes which have at least 1 R row
         self.resistance_catalogue=self.resistance_catalogue.loc[(self.resistance_catalogue[self.catalogue_name+"_PREDICTION"].notna()) & (self.resistance_catalogue.GENE.isin(relevant_genes))]
@@ -322,7 +322,8 @@ class ResistanceCatalogue(object):
 
                 if not predictions:
                     # all mutations should hit at least one of the default entries, so if this doesn't happen, something is wrong
-                    raise ValueError("No entry found in the catalogue for "+mutation)
+                    return({"UNK":"U"})
+                    # raise ValueError("No entry found in the catalogue for "+mutation)
                 else:
                     # if the dictionary is not empty, store the result with the highest priority
                     final_prediction=predictions[sorted(predictions)[-1]]

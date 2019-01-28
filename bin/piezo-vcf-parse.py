@@ -15,7 +15,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--vcf_file",required=True,help="the path to a single VCF file")
     parser.add_argument("--genbank_file",default="H37Rv.gbk",help="the genbank file of the H37Rv M. tuberculosis wildtype_gene_collection genome")
-    parser.add_argument("--resistance_catalogue",default="test_catalogue.csv",required=False,help="the path to the resistance catalogue")
+    parser.add_argument("--catalogue_file",default="test_catalogue.csv",required=False,help="the path to the resistance catalogue")
     parser.add_argument("--catalogue_name",default="LID2015B",required=False,help="the name of the required catalogue, as defined in the resistance catalogue")
     parser.add_argument("--verbose",action='store_true',default=False,help="whether to show progress using tqdm")
     options = parser.parse_args()
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
 
     # instantiate a Resistance Catalogue instance by passing a text file
-    walker_catalogue=piezo.ResistanceCatalogue( input_file=options.resistance_catalogue,
+    walker_catalogue=piezo.ResistanceCatalogue( input_file=options.catalogue_file,
                                                 log_file="logs/piezo-resistance-catalogue-"+datestamp+".csv",
                                                 genbank_file=options.genbank_file,
                                                 catalogue_name=options.catalogue_name )
@@ -74,6 +74,8 @@ if __name__ == "__main__":
     EFFECTS_dict={}
     EFFECTS_counter=0
 
+    print(wildtype_gene_collection.gene_panel)
+
     # now get all the genes to calculate their own differences w.r.t the references, i.e. their mutations!
     for gene_name in wildtype_gene_collection.gene_panel:
 
@@ -81,6 +83,9 @@ if __name__ == "__main__":
         sample_gene_collection.gene[gene_name].identify_mutations(wildtype_gene_collection.gene[gene_name])
 
         mutations=sample_gene_collection.gene[gene_name].mutations
+
+
+        print(gene_name, mutations)
 
         for mutation_name in mutations:
 
@@ -101,7 +106,7 @@ if __name__ == "__main__":
                                                 mutations[mutation_name]["NUMBER_NUCLEOTIDE_CHANGES"]]
             MUTATIONS_counter+=1
 
-
+            print(gene_name,mutation_name)
             prediction=walker_catalogue.predict(gene_mutation=gene_name+"_"+mutation_name,verbose=options.verbose)
 
             # if it isn't an S, then a dictionary must have been returned
@@ -144,7 +149,7 @@ if __name__ == "__main__":
         metadata["WGS_PREDICTION_"+drug]=phenotype[drug]
 
     print("%40s %s" % ("VCF file", options.vcf_file))
-    print("%40s %s" % ("Catalogue", options.resistance_catalogue))
+    print("%40s %s" % ("Catalogue", options.catalogue_file))
     print("%40s %s" % ("Catalogue_name", options.catalogue_name))
     print("%40s %s" % ("Genbank file", options.genbank_file))
     for i in sorted(metadata):
