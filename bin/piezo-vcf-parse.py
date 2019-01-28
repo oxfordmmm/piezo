@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 import piezo
 import snpit
+import gemucator
 
 if __name__ == "__main__":
 
@@ -38,6 +39,8 @@ if __name__ == "__main__":
     # setup a GeneCollection object that contains all the genes/loci we are interested in
     wildtype_gene_collection=piezo.GeneCollection(species="M. tuberculosis",genbank_file=options.genbank_file,gene_panel=gene_panel,log_file="logs/piezo-genes-"+datestamp+".csv")
 
+    # setup a Gemucator object so you can check the mutations are valid
+    reference_genome=gemucator.gemucator(genbank_file=options.genbank_file)
 
     # create a copy of the wildtype_gene_collection genes which we will then alter according to the VCF file
     # need a deepcopy to ensure we take all the private variables etc with us, and point just take pointers
@@ -74,7 +77,7 @@ if __name__ == "__main__":
     EFFECTS_dict={}
     EFFECTS_counter=0
 
-    print(wildtype_gene_collection.gene_panel)
+    # print(wildtype_gene_collection.gene_panel)
 
     # now get all the genes to calculate their own differences w.r.t the references, i.e. their mutations!
     for gene_name in wildtype_gene_collection.gene_panel:
@@ -83,9 +86,6 @@ if __name__ == "__main__":
         sample_gene_collection.gene[gene_name].identify_mutations(wildtype_gene_collection.gene[gene_name])
 
         mutations=sample_gene_collection.gene[gene_name].mutations
-
-
-        print(gene_name, mutations)
 
         for mutation_name in mutations:
 
@@ -106,34 +106,37 @@ if __name__ == "__main__":
                                                 mutations[mutation_name]["NUMBER_NUCLEOTIDE_CHANGES"]]
             MUTATIONS_counter+=1
 
-            print(gene_name,mutation_name)
-            prediction=walker_catalogue.predict(gene_mutation=gene_name+"_"+mutation_name,verbose=options.verbose)
+            gene_mutation=gene_name+"_"+mutation_name
 
-            # if it isn't an S, then a dictionary must have been returned
-            if prediction!="S":
+            if reference_genome.valid_mutation(gene_mutation):
 
-                # iterate through the drugs in the dictionary (can be just one)
-                for drug_name in prediction:
+                prediction=walker_catalogue.predict(gene_mutation=gene_mutation,verbose=options.verbose)
 
-                    # only for completeness as this logic never leads to a change since by default the phenotype is S
-                    if drug_name and prediction[drug_name]=="S" and phenotype[drug_name]=="S":
-                        phenotype[drug_name]="S"
+                # if it isn't an S, then a dictionary must have been returned
+                if prediction!="S":
 
-                    # if the prediction is a U, we only move to a U if the current prediction is S
-                    # (to stop it overiding an R)
-                    # (again for completeness including the superfluous state)
-                    elif drug_name and prediction[drug_name]=="U" and phenotype[drug_name] in ["S","U"]:
-                        phenotype[drug_name]="U"
+                    # iterate through the drugs in the dictionary (can be just one)
+                    for drug_name in prediction:
 
-                    # finally if an R is predicted, it must be R
-                    elif drug_name and prediction[drug_name]=="R":
-                        phenotype[drug_name]="R"
+                        # only for completeness as this logic never leads to a change since by default the phenotype is S
+                        if drug_name and prediction[drug_name]=="S" and phenotype[drug_name]=="S":
+                            phenotype[drug_name]="S"
 
-                    EFFECTS_dict[EFFECTS_counter]=[vcf_filename,gene_name,mutation_name,drug_name,prediction[drug_name]]
+                        # if the prediction is a U, we only move to a U if the current prediction is S
+                        # (to stop it overiding an R)
+                        # (again for completeness including the superfluous state)
+                        elif drug_name and prediction[drug_name]=="U" and phenotype[drug_name] in ["S","U"]:
+                            phenotype[drug_name]="U"
+
+                        # finally if an R is predicted, it must be R
+                        elif drug_name and prediction[drug_name]=="R":
+                            phenotype[drug_name]="R"
+
+                        EFFECTS_dict[EFFECTS_counter]=[vcf_filename,gene_name,mutation_name,drug_name,prediction[drug_name]]
+                        EFFECTS_counter+=1
+                else:
+                    EFFECTS_dict[EFFECTS_counter]=[vcf_filename,gene_name,mutation_name,"UNK","U"]
                     EFFECTS_counter+=1
-            else:
-                EFFECTS_dict[EFFECTS_counter]=[vcf_filename,gene_name,mutation_name,"UNK","U"]
-                EFFECTS_counter+=1
 
 
     MUTATIONS=pandas.DataFrame.from_dict(MUTATIONS_dict,orient="index",columns=["FILENAME","GENE","MUTATION_TYPE","MUTATION","ELEMENT_TYPE","POSITION","PROMOTER","CDS","SYNONYMOUS","NONSYNONYMOUS","INSERTION","DELETION","REF","ALT","NUMBER_NUCLEOTIDE_CHANGES"])

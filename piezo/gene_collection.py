@@ -77,6 +77,8 @@ class GeneCollection(object):
             # and continue only if the mutation occurs in the one of the genes from the panel and if the call was actually made
             if self.gene_panel_index[position]!="" and row.called:
 
+                # print(record)
+
                 # find out what gene we are in
                 gene_name=self.gene_panel_index[position]
 
@@ -131,7 +133,7 @@ class GeneCollection(object):
                             self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after)
 
                             assert before!=after, "bases the same in "+row
-                            
+
                             # increment the position in the genome
                             position+=1
 
