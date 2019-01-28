@@ -94,7 +94,7 @@ if __name__ == "__main__":
                                                 mutations[mutation_name]["VARIANT_TYPE"],\
                                                 mutation_name,\
                                                 mutations[mutation_name]["ELEMENT_TYPE"],\
-                                                mutations[mutation_name]["POSITION"],\
+                                                int(mutations[mutation_name]["POSITION"]),\
                                                 mutations[mutation_name]["PROMOTER"],\
                                                 mutations[mutation_name]["CDS"],\
                                                 mutations[mutation_name]["SYNONYMOUS"],\
@@ -103,7 +103,13 @@ if __name__ == "__main__":
                                                 mutations[mutation_name]["DELETION"],\
                                                 mutations[mutation_name]["REF"],\
                                                 mutations[mutation_name]["ALT"],\
-                                                mutations[mutation_name]["NUMBER_NUCLEOTIDE_CHANGES"]]
+                                                mutations[mutation_name]["INDEL_1"],\
+                                                mutations[mutation_name]["INDEL_2"],\
+                                                mutations[mutation_name]["INDEL_3"],\
+                                                int(mutations[mutation_name]["REF_COVERAGE"]),\
+                                                int(mutations[mutation_name]["ALT_COVERAGE"]),\
+                                                float(mutations[mutation_name]["MINOS_SCORE"]),\
+                                                int(mutations[mutation_name]["NUMBER_NUCLEOTIDE_CHANGES"])]
             MUTATIONS_counter+=1
 
             gene_mutation=gene_name+"_"+mutation_name
@@ -139,13 +145,13 @@ if __name__ == "__main__":
                     EFFECTS_counter+=1
 
 
-    MUTATIONS=pandas.DataFrame.from_dict(MUTATIONS_dict,orient="index",columns=["FILENAME","GENE","MUTATION_TYPE","MUTATION","ELEMENT_TYPE","POSITION","PROMOTER","CDS","SYNONYMOUS","NONSYNONYMOUS","INSERTION","DELETION","REF","ALT","NUMBER_NUCLEOTIDE_CHANGES"])
+    MUTATIONS=pandas.DataFrame.from_dict(MUTATIONS_dict,orient="index",columns=["FILENAME","GENE","MUTATION_TYPE","MUTATION","ELEMENT_TYPE","POSITION","PROMOTER","CDS","SYNONYMOUS","NONSYNONYMOUS","INSERTION","DELETION","REF","ALT","INDEL_1","INDEL_2","INDEL_3","REF_COVERAGE","ALT_COVERAGE","MINOS_SCORE","NUMBER_NUCLEOTIDE_CHANGES"])
     MUTATIONS.set_index(["FILENAME","GENE","MUTATION"],inplace=True)
-    MUTATIONS.to_csv(vcf_stem+"-mutations.csv",header=False)
+    MUTATIONS.to_csv(vcf_stem+"-mutations.csv",header=True)
 
     EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["FILENAME","GENE","MUTATION","DRUG","PREDICTION"])
     EFFECTS.set_index(["FILENAME","DRUG","GENE","MUTATION"],inplace=True)
-    EFFECTS.to_csv(vcf_stem+"-effects.csv",header=False)
+    EFFECTS.to_csv(vcf_stem+"-effects.csv",header=True)
 
     wgs_prediction_string=""
     for drug in walker_catalogue.drug_list:

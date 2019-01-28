@@ -59,7 +59,18 @@ class Gene(object):
 
         self.mutation_ref=[]
         self.mutation_pos=[]
-        self.mutation_new=[]
+        self.mutation_alt=[]
+        self.coverage_ref=[]
+        self.coverage_alt=[]
+        self.model_score=[]
+
+        self.coding_coverage_ref=numpy.zeros(len(self.coding_nucleotides_string))
+        self.coding_coverage_alt=numpy.zeros(len(self.coding_nucleotides_string))
+        self.coding_score=numpy.zeros(len(self.coding_nucleotides_string))
+
+        self.promoter_coverage_ref=numpy.zeros(len(self.promoter_nucleotides_string))
+        self.promoter_coverage_alt=numpy.zeros(len(self.promoter_nucleotides_string))
+        self.promoter_score=numpy.zeros(len(self.promoter_nucleotides_string))
 
         # lastly, recompute the sequence
         self._recompute_sequence()
@@ -68,6 +79,7 @@ class Gene(object):
 
         # create numpy arrays of the bases
         self.coding_nucleotides=numpy.array([i for i in self.coding_nucleotides_string])
+
         self.promoter_nucleotides=numpy.array([i for i in self.promoter_nucleotides_string])
 
         # first find out the reverse complement if strand==-1 in the GenBank file
@@ -81,6 +93,7 @@ class Gene(object):
             self.coding_string=self.coding_nucleotides_string
             self.coding_sequence=numpy.array([i for i in self.coding_string])
             self.promoter_sequence=numpy.array([i for i in self.promoter_nucleotides_string])
+
 
         # only translate the sequence if it is a protein coding element
         if self.element_type in ['GENE','LOCUS']:
@@ -121,15 +134,15 @@ class Gene(object):
             output+="%i to %i\n" % (self.amino_acid_position[0],self.amino_acid_position[-1])
         return(output)
 
-    def store_indel(self, mutation, ref=None, alt=None):
+    def store_indel(self, mutation, ref=None, alt=None, coverage=None, model_score=None, genome_position=None):
 
         cols=mutation.split("_")
 
-        assert len(cols)==3, "indel passed not in form 1300_ins_3"
+        assert len(cols)==2, "indel passed not in form 1300_ins_3"
 
-        self.indels[mutation]={ 'REF':ref.lower(), 'ALT':alt.lower() }
+        self.indels[mutation]={ 'REF':ref.lower(), 'ALT':alt.lower(), 'REF_COVERAGE':coverage[0], 'ALT_COVERAGE':coverage[1], 'MODEL_SCORE':model_score, 'GENOME_POSITION':genome_position}
 
-    def mutate_base(self,position=None,original_base=None,new_base=None):
+    def mutate_base(self, position=None, original_base=None, new_base=None, coverage=None, model_score=None):
 
         assert original_base.lower() in ['a','c','t','g'], "not been given a nucleotide!"
 
@@ -155,6 +168,10 @@ class Gene(object):
             # mutate to the new base
             self.coding_nucleotides[location]=new_base.lower()
 
+            self.coding_score[location]=float(model_score)
+            self.coding_coverage_alt[location]=int(coverage[1])
+            self.coding_coverage_ref[location]=int(coverage[0])
+
             # recreate the string
             self.coding_nucleotides_string=""
             for i in self.coding_nucleotides:
@@ -173,6 +190,10 @@ class Gene(object):
 
             # mutate to the new base
             self.promoter_nucleotides[location]=new_base.lower()
+
+            self.promoter_score[location]=float(model_score)
+            self.promoter_coverage_alt[location]=int(coverage[1])
+            self.promoter_coverage_ref[location]=int(coverage[0])
 
             # recreate the string
             self.promoter_nucleotides_string=""
@@ -222,8 +243,18 @@ class Gene(object):
         promoter_mutation_mask=self.promoter_sequence!=reference.promoter_sequence
 
         self.mutation_ref=reference.promoter_sequence[promoter_mutation_mask]
-        self.mutation_new=self.promoter_sequence[promoter_mutation_mask]
+        self.mutation_alt=self.promoter_sequence[promoter_mutation_mask]
         self.mutation_pos=self.promoter_nucleotides_position[promoter_mutation_mask]
+
+        # need to revse
+        if self.reverse:
+            self.coverage_ref=self.promoter_coverage_ref[promoter_mutation_mask[::-1]]
+            self.coverage_alt=self.promoter_coverage_alt[promoter_mutation_mask[::-1]]
+            self.model_score=self.promoter_score[promoter_mutation_mask[::-1]]
+        else:
+            self.coverage_ref=self.promoter_coverage_ref[promoter_mutation_mask]
+            self.coverage_alt=self.promoter_coverage_alt[promoter_mutation_mask]
+            self.model_score=self.promoter_score[promoter_mutation_mask]
 
         if self.element_type in ['GENE','LOCUS']:
 
@@ -231,41 +262,78 @@ class Gene(object):
             coding_mutation_mask=self.triplets!=reference.triplets
 
             self.mutation_ref=numpy.append(self.mutation_ref,reference.triplets[coding_mutation_mask])
-            self.mutation_new=numpy.append(self.mutation_new,self.triplets[coding_mutation_mask])
+            self.mutation_alt=numpy.append(self.mutation_alt,self.triplets[coding_mutation_mask])
             self.mutation_pos=numpy.append(self.mutation_pos,self.amino_acid_position[coding_mutation_mask])
+
+            coding_mutation_mask=self.coding_sequence!=reference.coding_sequence
+
+            if self.reverse:
+                self.coverage_ref=numpy.append(self.coverage_ref,self.coding_coverage_ref[coding_mutation_mask[::-1]])
+                self.coverage_alt=numpy.append(self.coverage_alt,self.coding_coverage_alt[coding_mutation_mask[::-1]])
+                self.model_score=numpy.append(self.model_score,self.coding_score[coding_mutation_mask[::-1]])
+            else:
+                self.coverage_ref=numpy.append(self.coverage_ref,self.coding_coverage_ref[coding_mutation_mask])
+                self.coverage_alt=numpy.append(self.coverage_alt,self.coding_coverage_alt[coding_mutation_mask])
+                self.model_score=numpy.append(self.model_score,self.coding_score[coding_mutation_mask])
+
 
         elif self.element_type=="RNA":
 
             coding_mutation_mask=self.coding_sequence!=reference.coding_sequence
 
             self.mutation_ref=numpy.append(self.mutation_ref,reference.coding_nucleotides[coding_mutation_mask])
-            self.mutation_new=numpy.append(self.mutation_new,self.coding_nucleotides[coding_mutation_mask])
+            self.mutation_alt=numpy.append(self.mutation_alt,self.coding_nucleotides[coding_mutation_mask])
             self.mutation_pos=numpy.append(self.mutation_pos,self.coding_nucleotides_position[coding_mutation_mask])
+
+            self.coverage_ref=numpy.append(self.coverage_ref,self.coding_coverage_ref[coding_mutation_mask])
+            self.coverage_alt=numpy.append(self.coverage_alt,self.coding_coverage_alt[coding_mutation_mask])
+            self.model_score=numpy.append(self.model_score,self.coding_score[coding_mutation_mask])
 
         for i in self.indels:
 
             cols=i.split("_")
 
-            assert len(cols)==3, "malformed indel mutation"
+            assert len(cols)==2, "malformed indel mutation: "+i
+            assert cols[1]=="indel", "malformed indel mutation: "+i
 
-            if int(cols[0])<0:
+            indel_position=int(cols[0])
+
+            ref_bases=self.indels[i]['REF']
+            alt_bases=self.indels[i]['ALT']
+
+            # if an insertion, this will be positive. A deletion will be negative
+            indel_length=len(alt_bases)-len(ref_bases)
+
+            if indel_length<0:
+                indel_type="del"
+            elif indel_length>0:
+                indel_type="ins"
+            else:
+                raise ValueError("invalid length of indel! "+str(length_of_indel))
+
+            if indel_position<0:
                 promoter=True
                 cds=False
             else:
                 cds=True
                 promoter=False
 
-            if int(cols[2])>0:
+            if indel_length>0:
                 insertion=True
                 deletion=False
             else:
                 insertion=False
                 deletion=True
 
-            if cols[2]=="*":
-                number_nucleotide_changes=None
+            number_nucleotide_changes=indel_length
+
+            indel_1=str(indel_position)+"_"+indel_type
+            indel_2=str(indel_position)+"_"+indel_type+"_"+str(indel_length)
+            if insertion:
+                indel_3=str(indel_position)+"_"+indel_type+"_"+self.indels[i]['ALT'][1:].lower()
             else:
-                number_nucleotide_changes=int(cols[2])
+                # cannot specify which bases where deleted since we do not know!
+                indel_3=None
 
             self.mutations[i]={ "ELEMENT_TYPE": self.element_type,\
                                 "VARIANT_TYPE": "INDEL",
@@ -278,10 +346,15 @@ class Gene(object):
                                 "DELETION":deletion,\
                                 "REF":self.indels[i]['REF'],\
                                 "ALT":self.indels[i]['ALT'],\
+                                "INDEL_1":indel_1,\
+                                "INDEL_2":indel_2,\
+                                "INDEL_3":indel_3,\
+                                "REF_COVERAGE":self.indels[i]['REF_COVERAGE'],\
+                                "ALT_COVERAGE":self.indels[i]['ALT_COVERAGE'],\
+                                "MINOS_SCORE":self.indels[i]['MODEL_SCORE'],\
                                 "NUMBER_NUCLEOTIDE_CHANGES":number_nucleotide_changes}
 
-
-        for (before,position,after) in zip(self.mutation_ref,self.mutation_pos,self.mutation_new):
+        for (before,position,after,cov_ref,cov_alt,score) in zip(self.mutation_ref,self.mutation_pos,self.mutation_alt, self.coverage_ref, self.coverage_alt, self.model_score):
 
             if (self.element_type=='RNA') or (self.element_type in ['GENE','LOCUS'] and position<0):
 
@@ -329,12 +402,18 @@ class Gene(object):
                                 "DELETION":False,\
                                 "REF":before,\
                                 "ALT":after,\
+                                "INDEL_1":None,\
+                                "INDEL_2":None,\
+                                "INDEL_3":None,\
+                                "REF_COVERAGE":cov_ref,\
+                                "ALT_COVERAGE":cov_alt,\
+                                "MINOS_SCORE":score,\
                                 "NUMBER_NUCLEOTIDE_CHANGES":number_nucleotide_changes}
 
 
     def print_mutations(self):
 
         line=""
-        for (i,j,k) in zip(self.mutation_ref,self.mutation_pos,self.mutation_new):
+        for (i,j,k) in zip(self.mutation_ref,self.mutation_pos,self.mutation_alt):
             line+=("%s%s%s " % (i,j,k))
         return line

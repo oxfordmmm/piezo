@@ -77,14 +77,13 @@ class GeneCollection(object):
             # and continue only if the mutation occurs in the one of the genes from the panel and if the call was actually made
             if self.gene_panel_index[position]!="" and row.called:
 
-                # print(record)
-
                 # find out what gene we are in
                 gene_name=self.gene_panel_index[position]
 
-                # be really, really defensive and insist that gt_nums and gt_type works as I think it does
-                gt_before=int(row.gt_nums.split("/")[0])
-                gt_after=int(row.gt_nums.split("/")[1])
+                # be really, really defensive and insist that gt_alleles works as I think it does
+                assert len(row.gt_alleles)==2, "there are more alleles than expected!"
+
+                (gt_before,gt_after)=(int(row.gt_alleles[0]),int(row.gt_alleles[1]))
 
                 # also be defensive about the relatioship between gt_type and gt_before/after
                 # these should all be 0/0 as are ref calls i.e. leave as reference
@@ -101,6 +100,10 @@ class GeneCollection(object):
 
                 else:
                     raise ValueError("gt_type is not one of 0,1 or 2 but is instead "+str(row.gt_type))
+
+                coverage_before=row['COV'][0]
+                coverage_after=row['COV'][gt_after]
+                model_value=row['GT_CONF']
 
                 # ignore ref calls (0/0) and only consider homozygous, null and hets
                 if row.gt_type==2 or row['GT']=='./.' or row.gt_type==1:
@@ -130,7 +133,8 @@ class GeneCollection(object):
                             # the mutate base is setup to handle one base at a time, so call it each time around the loop
                             # note that this will be called even if before==after, but that is needed to deal with k-mers where not all bases have been mutated
                             # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
-                            self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after)
+                        
+                            self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=model_value)
 
                             assert before!=after, "bases the same in "+row
 
@@ -138,9 +142,6 @@ class GeneCollection(object):
                             position+=1
 
                     elif len(ref_bases)!=len(alt_bases):
-
-                        # if an insertion, this will be positive. A deletion will be negative
-                        length_of_indel=len(alt_bases)-len(ref_bases)
 
                         # find out where the mutation is
                         (type,location)=self.gene[gene_name].return_location(position)
@@ -159,16 +160,9 @@ class GeneCollection(object):
                             else:
                                 raise ValueError("Only CDS or PROMOTER can be returned: was given "+type)
 
-                            if length_of_indel>0:
-                                insertion=True
-                                deletion=False
-                                mutation_name=str(location)+"_ins_"+str(abs(length_of_indel))
-                            else:
-                                insertion=False
-                                deletion=True
-                                mutation_name=str(location)+"_del_"+str(abs(length_of_indel))
+                            mutation_name=str(location)+"_indel"
 
-                            self.gene[gene_name].store_indel(mutation=mutation_name,ref=ref_bases,alt=alt_bases)
+                            self.gene[gene_name].store_indel(mutation=mutation_name,ref=ref_bases,alt=alt_bases,coverage=[coverage_before,coverage_after],model_score=model_value,genome_position=position)
 
 
         return(n_hom,n_het,n_ref,n_null)
