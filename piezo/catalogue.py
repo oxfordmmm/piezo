@@ -56,6 +56,12 @@ class ResistanceCatalogue(object):
         # ensure that the specified catalogue has a column
         assert self.catalogue_name+"_PREDICTION" in self.resistance_catalogue.columns, "specified catalogue "+self.catalogue_name+" does not have a column in the loaded Resistance Catalogue!"
 
+        assert len(self.resistance_catalogue.GENBANK_REFERENCE.unique())==1, "multiple genbank references specified in catalogue!"
+
+        catalogue_version=self.resistance_catalogue.GENBANK_REFERENCE.unique()[0]
+
+        assert catalogue_version==self.reference_genome.version, "Catalogue uses version "+catalogue_version+" whilst genbank file is version "+self.reference_genome.version+" !!"
+
         # only pull out genes which have at least one R row
         relevant_genes=self.resistance_catalogue.loc[self.resistance_catalogue[self.catalogue_name+"_PREDICTION"].isin(['S','U','R'])].GENE.unique()
 
