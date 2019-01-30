@@ -313,7 +313,7 @@ class ResistanceCatalogue(object):
                         if indel_type!="indel" and indel_length is not None and indel_bases is not None:
                             row=rules.loc[(rules.VARIANT_TYPE==variant_type) & (rules.POSITION==str(position)) & (rules.MUTATION==str(position)+"_"+indel_type+"_"+str(indel_length)+"_"+indel_bases)]
                             if not row.empty:
-                                predictions[5E8]=str(row[self.catalogue_name+"_PREDICTION"].values[0])
+                                predictions[9]=str(row[self.catalogue_name+"_PREDICTION"].values[0])
                                 if verbose:
                                     print("9. "+predictions[9]+" an insertion of a specified series of nucleotides at a position in the CDS or PROM (e.g. rpoB_1300_ins_ca)")
                     if verbose:
@@ -322,8 +322,8 @@ class ResistanceCatalogue(object):
 
                 if not predictions:
                     # all mutations should hit at least one of the default entries, so if this doesn't happen, something is wrong
-                    return({"UNK":"U"})
-                    # raise ValueError("No entry found in the catalogue for "+mutation)
+                    # return({"UNK":"U"})
+                    raise ValueError("No entry found in the catalogue for "+mutation)
                 else:
                     # if the dictionary is not empty, store the result with the highest priority
                     final_prediction=predictions[sorted(predictions)[-1]]

@@ -133,10 +133,9 @@ class GeneCollection(object):
                             # the mutate base is setup to handle one base at a time, so call it each time around the loop
                             # note that this will be called even if before==after, but that is needed to deal with k-mers where not all bases have been mutated
                             # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
-                        
-                            self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=model_value)
 
-                            assert before!=after, "bases the same in "+row
+                            if before!=after:
+                                self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=model_value)
 
                             # increment the position in the genome
                             position+=1
