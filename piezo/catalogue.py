@@ -69,6 +69,8 @@ class ResistanceCatalogue(object):
         assert numpy.sum(self.resistance_catalogue["VARIANT_TYPE"].isin([numpy.nan,"SNP","INDEL"]))==self.number_rows, "TYPE column contains entries other than SNP or INDEL"
         assert numpy.sum(self.resistance_catalogue["VARIANT_AFFECTS"].isin([numpy.nan,'CDS','PROM','RNA']))==self.number_rows, "AFFECTS column contains entries other than CDS, PROM or RNA"
 
+        print(self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"])
+
         # insist that there are no duplicated rows
         n_duplicated_rows=len(self.resistance_catalogue.loc[self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"],keep='first')])
         assert n_duplicated_rows==0, "There are duplicated rows in the catalogue!"
