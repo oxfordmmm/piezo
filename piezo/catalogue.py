@@ -323,7 +323,7 @@ class ResistanceCatalogue(object):
                 if not predictions:
                     # all mutations should hit at least one of the default entries, so if this doesn't happen, something is wrong
                     # return({"UNK":"U"})
-                    raise ValueError("No entry found in the catalogue for "+mutation)
+                    raise ValueError("No entry found in the catalogue for "+gene_mutation)
                 else:
                     # if the dictionary is not empty, store the result with the highest priority
                     final_prediction=predictions[sorted(predictions)[-1]]
