@@ -120,13 +120,14 @@ class ResistanceCatalogue(object):
         for i in foo['MUTATION']:
             self.gene_panel[i[0]]=i[1]
 
-    def predict(self,gene_mutation=None,verbose=False):
+    def predict(self,gene_mutation=None,verbose=False,validate=True):
         '''
         Predict the effect of the given mutation on one or more antimicrobials.
 
         Args:
             mutation (str): a genetic variant in the form GENE_MUTATION e.g. for a SNP katG_S315T, INDEL katG_315_indel.
             verbose (bool): if True, then a description of the rules that apply to the supplied mutation and their priority is written to STDOUT (default=False)
+            validate (bool): if True, then the supplied mutation is validated against the GenBank file. Only set to False if the mutation is being supplied from a trusted source and you know what you are doing! (default=True)
 
         Returns:
             result (dict): the drugs affected by the mutation are the keys, and the predicted phenotypes are the values. e.g. {'LEV':'R', 'MXF':'R'}
@@ -148,11 +149,13 @@ class ResistanceCatalogue(object):
         # ..and the remainder is the mutation
         mutation=gene_mutation.split(gene_name+"_")[1]
 
-        # check that the gene exists in the reference genome!
-        assert self.reference_genome.valid_gene(gene_name), gene_name+" does not exist in the specified GENBANK file!"
 
-        # also check that the supplied mutation is valid given the reference genome
-        assert self.reference_genome.valid_mutation(gene_mutation), "gene exists but "+gene_mutation+" is badly formed; check the reference amino acid or nucleotide!"
+        if validate:
+            # check that the gene exists in the reference genome!
+            assert self.reference_genome.valid_gene(gene_name), gene_name+" does not exist in the specified GENBANK file!"
+
+            # also check that the supplied mutation is valid given the reference genome
+            assert self.reference_genome.valid_mutation(gene_mutation), "gene exists but "+gene_mutation+" is badly formed; check the reference amino acid or nucleotide!"
 
         # parse the mutation to work out what type of mutation it is, where it acts etc
         (position,variant_affects,variant_type,indel_type,indel_length,indel_bases,before,after)=self._parse_mutation(gene_mutation)
@@ -334,9 +337,7 @@ class ResistanceCatalogue(object):
                     # if the dictionary is not empty, store the result with the highest priority
                     final_prediction=predictions[sorted(predictions)[-1]]
 
-
                 result[compound]=final_prediction
-
 
         return(result)
 
