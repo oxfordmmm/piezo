@@ -1,6 +1,6 @@
 # piezo
 
-Takes a Clockwork VCF, a Genetic Catalogue and the associated GenBank file and predicts the effect on the relevant antibiotics.
+Takes a Clockwork VCF, a Genetic Catalogue and the associated GenBank file and predicts the effect on the relevant antibiotics. This code was developed as part of the [CRyPTIC](http://www.crypticproject.org) international tuberculosis consortium.
 
 ## Example
 
