@@ -77,6 +77,11 @@ class GeneCollection(object):
             # and continue only if the mutation occurs in the one of the genes from the panel and if the call was actually made
             if self.gene_panel_index[position]!="" and row.called:
 
+                # insist that the REF bases indeed match
+                vcf_bases=record.REF
+                gbk_bases=self.reference_genome[position-1:position-1+len(vcf_bases)].seq
+                assert vcf_bases==gbk_bases, "the REF base(s) at position "+str(position)+" are "+vcf_bases+" which does not match the Genbank file which has these base(s): "+gbk_bases
+
                 # find out what gene we are in
                 gene_name=self.gene_panel_index[position]
 
@@ -171,10 +176,10 @@ class GeneCollection(object):
         self.gene={}
 
         # read in the M. tuberculosis reference genome
-        reference_genome=SeqIO.read(genbank_file,'genbank')
+        self.reference_genome=SeqIO.read(genbank_file,'genbank')
 
         # iterate through all the features in the genomes
-        for record in reference_genome.features:
+        for record in self.reference_genome.features:
 
             # check that the record is a Coding Sequence and it is also a gene
             if record.type in ['CDS','rRNA']:
@@ -212,19 +217,19 @@ class GeneCollection(object):
                     else:
                         raise Exception("gene does not have correct type specified in gene panel file")
 
-                    coding_nucleotides=reference_genome[start:end]
+                    coding_nucleotides=self.reference_genome[start:end]
                     first_nucleotide_index=start+1
 
                     if strand==1:
                         reverse=False
                         length_promoter=numpy.sum(self.gene_panel_index[start-default_promoter_length:start]=="")
                         self.gene_panel_index[start-length_promoter:end+1]=gene_name
-                        promoter_nucleotides=reference_genome[start-length_promoter:start]
+                        promoter_nucleotides=self.reference_genome[start-length_promoter:start]
                     else:
                         reverse=True
                         length_promoter=numpy.sum(self.gene_panel_index[end:end+default_promoter_length]=="")
                         self.gene_panel_index[start:end+1+length_promoter]=gene_name
-                        promoter_nucleotides=reference_genome[end:end+length_promoter]
+                        promoter_nucleotides=self.reference_genome[end:end+length_promoter]
 
                     # store them as a string
                     coding_nucleotides_string=str(coding_nucleotides.seq)
