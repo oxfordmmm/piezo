@@ -81,7 +81,7 @@ class GeneCollection(object):
                 vcf_bases=record.REF
                 gbk_bases=self.reference_genome[position-1:position-1+len(vcf_bases)].seq
                 if vcf_bases!=gbk_bases:
-                    logging.warning("REF base(s) mismatch between VCF ("+vcf_bases+")and GENBANK ("+gbk_bases+") at position "+str(position))
+                    logging.warning("REF base(s) mismatch between VCF ("+vcf_bases+") and GENBANK ("+gbk_bases+") at position "+str(position)+" in VCF file "+vcf_file)
 
                 # find out what gene we are in
                 gene_name=self.gene_panel_index[position]
