@@ -1,0 +1,12 @@
+NAME,DESCRIPTION,RUN,VCF_VERSION,MINOS_VERSION,AUTHOR,RIF_RESULT,INH_RESULT,PZA_RESULT,EMB_RESULT
+01,Sample Clockwork VCF,TRUE,VCFv4.2,0.4.1,Philip Fowler,R,R,R,R
+02,Sample Clockwork VCF,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,R,S,S
+03,rpoB_S450L,TRUE,VCFv4.2,0.4.1,Philip Fowler,R,S,S,S
+04,katG_S315T,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,R,S,S
+05,pncA_V139A,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,S,R,S
+06,embB_M306V,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,S,S,R
+07,U test,TRUE,VCFv4.2,0.4.1,Philip Fowler,U,S,S,S
+08,S test,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,S,S,S
+09,Wrong position,FALSE,VCFv4.2,0.4.1,Philip Fowler,None,None,None,None
+10,Bad base in REF,FALSE,VCFv4.2,0.4.1,Philip Fowler,None,None,None,None
+11,Bad base in ALT,FALSE,VCFv4.2,0.4.1,Philip Fowler,None,None,None,None

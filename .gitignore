@@ -9,6 +9,7 @@ __pycache__/
 *$py.class
 *~
 logs/
+cryptic-genetics*csv
 
 # C extensions
 *.so
