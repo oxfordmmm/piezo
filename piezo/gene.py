@@ -186,7 +186,7 @@ class Gene(object):
             assert numpy.sum(location)==1, "WARNING: trying to mutate "+self.gene_name+" at position "+str(position)+" from "+original_base+" to "+new_base+" and the mask has "+str(numpy.sum(location))+" locations"
 
             # check that it is actually a mutation!
-            assert self.promoter_nucleotides[location]!=new_base.lower(),  "new base is also "+new_base
+            assert self.promoter_nucleotides[location]!=new_base.lower(),  "new base is also "+new_base+" at location "+str(location)+" in gene "+self.gene_name
 
             # mutate to the new base
             self.promoter_nucleotides[location]=new_base.lower()
