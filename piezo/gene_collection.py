@@ -82,92 +82,93 @@ class GeneCollection(object):
                 gbk_bases=self.reference_genome[position-1:position-1+len(vcf_bases)].seq
                 if vcf_bases!=gbk_bases:
                     logging.warning("REF base(s) mismatch between VCF ("+vcf_bases+") and GENBANK ("+gbk_bases+") at position "+str(position)+" in VCF file "+vcf_file)
-
-                # find out what gene we are in
-                gene_name=self.gene_panel_index[position]
-
-                # be really, really defensive and insist that gt_alleles works as I think it does
-                assert len(row.gt_alleles)==2, "there are more alleles than expected!"
-
-                (gt_before,gt_after)=(int(row.gt_alleles[0]),int(row.gt_alleles[1]))
-
-                # also be defensive about the relatioship between gt_type and gt_before/after
-                # these should all be 0/0 as are ref calls i.e. leave as reference
-                if row.gt_type==0:
-                    assert gt_before==gt_after==0, "ref calls not working as expected in VCF file"
-
-                # these are het calls
-                elif row.gt_type==1:
-                    assert gt_before!=gt_after, "het calls not working as expected in VCF file"
-
-                # whilst these are the homozygous variants
-                elif row.gt_type==2:
-                    assert gt_before==gt_after
-
                 else:
-                    raise ValueError("gt_type is not one of 0,1 or 2 but is instead "+str(row.gt_type))
 
-                coverage_before=row['COV'][0]
-                coverage_after=row['COV'][gt_after]
-                model_value=row['GT_CONF']
+                    # find out what gene we are in
+                    gene_name=self.gene_panel_index[position]
 
-                # ignore ref calls (0/0) and only consider homozygous, null and hets
-                if row.gt_type==2 or row['GT']=='./.' or row.gt_type==1:
+                    # be really, really defensive and insist that gt_alleles works as I think it does
+                    assert len(row.gt_alleles)==2, "there are more alleles than expected!"
 
-                    # find out what the bases are in tge GenBank reference genome
-                    ref_bases=record.REF
+                    (gt_before,gt_after)=(int(row.gt_alleles[0]),int(row.gt_alleles[1]))
 
-                    # insert 'x' base for low-coverage nulls
-                    if row['GT']=='./.':
-                        alt_bases='x' * len(ref_bases)
+                    # also be defensive about the relatioship between gt_type and gt_before/after
+                    # these should all be 0/0 as are ref calls i.e. leave as reference
+                    if row.gt_type==0:
+                        assert gt_before==gt_after==0, "ref calls not working as expected in VCF file"
 
-                    # insert 'z' base for hets
+                    # these are het calls
                     elif row.gt_type==1:
-                        alt_bases='z' * len(ref_bases)
+                        assert gt_before!=gt_after, "het calls not working as expected in VCF file"
 
-                    # otherwise it must be a homozygous call so use the genotype to determine the correct alt
+                    # whilst these are the homozygous variants
+                    elif row.gt_type==2:
+                        assert gt_before==gt_after
+
                     else:
-                        alt_bases=str(record.ALT[gt_after-1])
+                        raise ValueError("gt_type is not one of 0,1 or 2 but is instead "+str(row.gt_type))
 
-                    # we are now in a position to either make a mutation (SNP) or remember an INDEL
-                    # the majority of the below will be SNPs, but some will be e.g. 5-mers in gyrA with 2 SNPs in close proximity
-                    if len(ref_bases)==len(alt_bases):
+                    coverage_before=row['COV'][0]
+                    coverage_after=row['COV'][gt_after]
+                    model_value=row['GT_CONF']
 
-                        # most of the time these will be SNPs so the loop will iterate just once
-                        for before,after in zip(ref_bases,alt_bases):
+                    # ignore ref calls (0/0) and only consider homozygous, null and hets
+                    if row.gt_type==2 or row['GT']=='./.' or row.gt_type==1:
 
-                            # the mutate base is setup to handle one base at a time, so call it each time around the loop
-                            # note that this will be called even if before==after, but that is needed to deal with k-mers where not all bases have been mutated
-                            # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
+                        # find out what the bases are in tge GenBank reference genome
+                        ref_bases=record.REF
 
-                            if before!=after:
-                                self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=model_value)
+                        # insert 'x' base for low-coverage nulls
+                        if row['GT']=='./.':
+                            alt_bases='x' * len(ref_bases)
 
-                            # increment the position in the genome
-                            position+=1
+                        # insert 'z' base for hets
+                        elif row.gt_type==1:
+                            alt_bases='z' * len(ref_bases)
 
-                    elif len(ref_bases)!=len(alt_bases):
+                        # otherwise it must be a homozygous call so use the genotype to determine the correct alt
+                        else:
+                            alt_bases=str(record.ALT[gt_after-1])
 
-                        # find out where the mutation is
-                        (type,location)=self.gene[gene_name].return_location(position)
+                        # we are now in a position to either make a mutation (SNP) or remember an INDEL
+                        # the majority of the below will be SNPs, but some will be e.g. 5-mers in gyrA with 2 SNPs in close proximity
+                        if len(ref_bases)==len(alt_bases):
 
-                        # be defensive; the above only returns None if the position isn't in the gene
-                        if type!=None:
+                            # most of the time these will be SNPs so the loop will iterate just once
+                            for before,after in zip(ref_bases,alt_bases):
 
-                            element_type=self.gene[gene_name].element_type
+                                # the mutate base is setup to handle one base at a time, so call it each time around the loop
+                                # note that this will be called even if before==after, but that is needed to deal with k-mers where not all bases have been mutated
+                                # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
 
-                            if type=="CDS":
-                                cds=True
-                                promoter=False
-                            elif type=="PROMOTER":
-                                cds=False
-                                promoter=True
-                            else:
-                                raise ValueError("Only CDS or PROMOTER can be returned: was given "+type)
+                                if before!=after:
+                                    self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=model_value)
 
-                            mutation_name=str(location)+"_indel"
+                                # increment the position in the genome
+                                position+=1
 
-                            self.gene[gene_name].store_indel(mutation=mutation_name,ref=ref_bases,alt=alt_bases,coverage=[coverage_before,coverage_after],model_score=model_value,genome_position=position)
+                        elif len(ref_bases)!=len(alt_bases):
+
+                            # find out where the mutation is
+                            (type,location)=self.gene[gene_name].return_location(position)
+
+                            # be defensive; the above only returns None if the position isn't in the gene
+                            if type!=None:
+
+                                element_type=self.gene[gene_name].element_type
+
+                                if type=="CDS":
+                                    cds=True
+                                    promoter=False
+                                elif type=="PROMOTER":
+                                    cds=False
+                                    promoter=True
+                                else:
+                                    raise ValueError("Only CDS or PROMOTER can be returned: was given "+type)
+
+                                mutation_name=str(location)+"_indel"
+
+                                self.gene[gene_name].store_indel(mutation=mutation_name,ref=ref_bases,alt=alt_bases,coverage=[coverage_before,coverage_after],model_score=model_value,genome_position=position)
 
 
         return(n_hom,n_het,n_ref,n_null)
