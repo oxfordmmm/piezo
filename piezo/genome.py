@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import logging, os
+import logging, os, gzip, bz2
 
 import pandas, numpy
 
@@ -21,6 +21,19 @@ class Genome(object):
         # extract the whole genome sequence (Seq object)
         GenBankFileSeq=GenBankFile.seq
 
+        self.genbank_reference=True
+
+        # store some of the metadata, if there
+        self.id=GenBankFile.id
+        if 'organism' in GenBankFile.annotations.keys():
+            self.organism=GenBankFile.annotations['organism']
+        if 'sequence_version' in GenBankFile.annotations.keys():
+            self.sequence_version=GenBankFile.annotations['sequence_version']
+        if 'source' in GenBankFile.annotations.keys():
+            self.source=GenBankFile.annotations['source']
+        if 'taxonomy' in GenBankFile.annotations.keys():
+            self.taxonomy=GenBankFile.annotations['taxonomy']
+
         # convert and store it internally as a numpy array of single chars
         self.bases=numpy.array(list(GenBankFileSeq.tomutable()))
 
@@ -35,13 +48,34 @@ class Genome(object):
         self.genome_string=''.join(self.bases)
 
 
+    def __repr__(self):
+
+        line=""
+        if hasattr(self,'id'):
+            line+=self.id+"\n"
+        if hasattr(self,'organism'):
+            line+=self.organism+"\n"
+        if hasattr(self,'sample_name'):
+            line+="Sample: "+self.sample_name+"\n"
+        else:
+            line+="Reference\n"
+        line+=str(self.length)+" bases\n"
+        line+=self.genome_string[:10]+"...."+self.genome_string[-10:]+"\n"
+        return(line)
+
     def apply_vcf_file(self,vcf_file=None):
+
+        self.genbank_reference=False
 
         # remember the full path to the VCF file
         self.vcf_file=vcf_file
 
         # remember the folder path and the name of the passed VCF file
         (self.vcf_folder,self.vcf_filename)=os.path.split(vcf_file)
+
+        filestem, file_extension = os.path.splitext(self.vcf_filename)
+
+        self.sample_name=filestem
 
         # open the VCF file
         vcf_reader = vcf.Reader(open(self.vcf_file.rstrip(),'r'))
@@ -50,6 +84,7 @@ class Genome(object):
 
             # find out the position in the genome
             genome_position=int(record.POS)
+
 
             # retrieve the details of the row
             row=record.samples[0]
@@ -100,12 +135,29 @@ class Genome(object):
 
         return(result)
 
-    def save_fasta(self,file_name=None):
+    def save_fasta(self,file_name=None,compression="gzip",compresslevel=2):
 
-        OUTPUT=open(file_name,'w')
+        if compression=="gzip":
+            OUTPUT=gzip.open(file_name+".gz",'wb',compresslevel=compresslevel)
+        elif compression=="bzip2":
+            OUTPUT=bz2.open(file_name+".bz2",'wb',compresslevel=compresslevel)
+        else:
+            OUTPUT=open(file_name,'w')
 
-        OUTPUT.write("> Sample fasta file\n")
+        header="> "
+        if hasattr(self,'id'):
+            header+=self.id+"| "
+        if hasattr(self,'organism'):
+            header+=self.organism+"|  "
+        if hasattr(self,'sample_name'):
+            header+=self.sample_name
+        header+="\n"
 
-        OUTPUT.write(self.genome_string)
+        if compression in ['bzip2','gzip']:
+            OUTPUT.write(str.encode(header))
+            OUTPUT.write(str.encode(self.genome_string))
+        else:
+            OUTPUT.write(header)
+            OUTPUT.write(self.genome_string)
 
         OUTPUT.close()
