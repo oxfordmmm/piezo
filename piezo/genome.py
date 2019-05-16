@@ -127,6 +127,9 @@ class Genome(object):
             # find out the position in the genome
             genome_position=int(record.POS)
 
+            ##FIXME need to add record.FILTER=="PASS" when I get new Clockwork files
+            # print(record.FILTER)
+
             # retrieve the details of the row
             row=record.samples[0]
 
@@ -153,7 +156,9 @@ class Genome(object):
 
                     for i in alt_bases:
 
-                        self.bases[genome_position]=i.lower()
+                        # only make a change if it fits in the list!
+                        if genome_position <= self.length:
+                            self.bases[genome_position]=i.lower()
 
                         genome_position+=1
 
