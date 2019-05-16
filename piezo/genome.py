@@ -9,33 +9,71 @@ import vcf
 
 class Genome(object):
 
-    def __init__(self,log_file=None,genbank_file=None):
+    def __init__(self,log_file=None,genbank_file=None,fasta_file=None):
 
         '''
         Instantiates a genome object by loading a VCF file and storing the whole genome as a numpy array
         '''
 
-        # parse the supplied genbank using BioPython
-        GenBankFile=SeqIO.read(genbank_file,"genbank")
+        assert ((genbank_file is not None) or (fasta_file is not None)), "one of a GenBank file or a FASTA file must be specified!"
 
-        # extract the whole genome sequence (Seq object)
-        GenBankFileSeq=GenBankFile.seq
+        if genbank_file is not None:
 
-        self.genbank_reference=True
+            # parse the supplied genbank using BioPython
+            GenBankFile=SeqIO.read(genbank_file,"genbank")
 
-        # store some of the metadata, if there
-        self.id=GenBankFile.id
-        if 'organism' in GenBankFile.annotations.keys():
-            self.organism=GenBankFile.annotations['organism']
-        if 'sequence_version' in GenBankFile.annotations.keys():
-            self.sequence_version=GenBankFile.annotations['sequence_version']
-        if 'source' in GenBankFile.annotations.keys():
-            self.source=GenBankFile.annotations['source']
-        if 'taxonomy' in GenBankFile.annotations.keys():
-            self.taxonomy=GenBankFile.annotations['taxonomy']
+            # extract the whole genome sequence (Seq object)
+            GenBankFileSeq=GenBankFile.seq
 
-        # convert and store it internally as a numpy array of single chars
-        self.bases=numpy.array(list(GenBankFileSeq.tomutable()))
+            self.genbank_reference=True
+            self.name="Reference"
+            self.additional_metadata=None
+
+            # store some of the metadata, if there
+            self.id=GenBankFile.id
+            if 'organism' in GenBankFile.annotations.keys():
+                self.organism=GenBankFile.annotations['organism']
+            if 'sequence_version' in GenBankFile.annotations.keys():
+                self.sequence_version=GenBankFile.annotations['sequence_version']
+            if 'source' in GenBankFile.annotations.keys():
+                self.source=GenBankFile.annotations['source']
+            if 'taxonomy' in GenBankFile.annotations.keys():
+                self.taxonomy=GenBankFile.annotations['taxonomy']
+
+            # convert and store it internally as a numpy array of single chars
+            self.bases=numpy.array(list(GenBankFileSeq.tomutable()))
+
+        elif fasta_file is not None:
+
+            if fasta_file.endswith(".gz"):
+                INPUT = gzip.open(fasta_file,'rb')
+                header=INPUT.readline().decode()
+                nucleotide_sequence=INPUT.read().decode()
+            elif fasta_file.endswith(".bz2"):
+                INPUT = bz2.open(fasta_file,'rb')
+                header=INPUT.readline().decode()
+                nucleotide_sequence=INPUT.read().decode()
+            else:
+                INPUT = open(fasta_file,'r')
+                header=INPUT.readline()
+                nucleotide_sequence=INPUT.read()
+
+            self.genbank_reference=False
+
+            cols=header[1:].split("|")
+
+            if len(cols)>1:
+                self.id=cols[0]
+                self.organism=cols[1]
+                self.name=cols[2]
+                if self.name=="Reference":
+                    self.genbank_reference=True
+            if len(cols)>3:
+                self.additional_metadata=cols[3]
+
+
+
+            self.bases=numpy.array(list(nucleotide_sequence))
 
         self.bases=numpy.char.lower(self.bases)
 
@@ -55,27 +93,31 @@ class Genome(object):
             line+=self.id+"\n"
         if hasattr(self,'organism'):
             line+=self.organism+"\n"
-        if hasattr(self,'sample_name'):
-            line+="Sample: "+self.sample_name+"\n"
+        if not self.genbank_reference:
+            line+="Sample: "+self.name+"\n"
         else:
             line+="Reference\n"
+        if hasattr(self,'path'):
+            line+="Path: "+self.path+"\n"
         line+=str(self.length)+" bases\n"
         line+=self.genome_string[:10]+"...."+self.genome_string[-10:]+"\n"
         return(line)
 
-    def apply_vcf_file(self,vcf_file=None):
+    def apply_vcf_file(self,filename=None):
 
         self.genbank_reference=False
 
         # remember the full path to the VCF file
-        self.vcf_file=vcf_file
+        self.vcf_file=filename
 
         # remember the folder path and the name of the passed VCF file
-        (self.vcf_folder,self.vcf_filename)=os.path.split(vcf_file)
+        (self.vcf_folder,self.vcf_filename)=os.path.split(self.vcf_file)
 
         filestem, file_extension = os.path.splitext(self.vcf_filename)
 
-        self.sample_name=filestem
+        self.name=filestem
+
+        self.path=self.vcf_folder
 
         # open the VCF file
         vcf_reader = vcf.Reader(open(self.vcf_file.rstrip(),'r'))
@@ -84,7 +126,6 @@ class Genome(object):
 
             # find out the position in the genome
             genome_position=int(record.POS)
-
 
             # retrieve the details of the row
             row=record.samples[0]
@@ -135,22 +176,24 @@ class Genome(object):
 
         return(result)
 
-    def save_fasta(self,file_name=None,compression="gzip",compresslevel=2):
+    def save_fasta(self,filename=None,compression=None,compresslevel=2,additional_metadata=None):
 
         if compression=="gzip":
-            OUTPUT=gzip.open(file_name+".gz",'wb',compresslevel=compresslevel)
+            OUTPUT=gzip.open(filename+".gz",'wb',compresslevel=compresslevel)
         elif compression=="bzip2":
-            OUTPUT=bz2.open(file_name+".bz2",'wb',compresslevel=compresslevel)
+            OUTPUT=bz2.open(filename+".bz2",'wb',compresslevel=compresslevel)
         else:
-            OUTPUT=open(file_name,'w')
+            OUTPUT=open(filename,'w')
 
-        header="> "
+        header=">"
         if hasattr(self,'id'):
-            header+=self.id+"| "
+            header+=self.id+"|"
         if hasattr(self,'organism'):
-            header+=self.organism+"|  "
-        if hasattr(self,'sample_name'):
-            header+=self.sample_name
+            header+=self.organism+"|"
+        if hasattr(self,'name'):
+            header+=self.name
+        if additional_metadata is not None:
+            header+="|" + additional_metadata
         header+="\n"
 
         if compression in ['bzip2','gzip']:
