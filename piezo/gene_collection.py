@@ -4,7 +4,7 @@ import pkg_resources, os, logging
 
 import numpy, vcf
 from Bio import SeqIO
-
+from tqdm import tqdm
 import piezo
 
 class GeneCollection(object):
@@ -47,13 +47,17 @@ class GeneCollection(object):
         # open the VCF file from the EBI
         vcf_reader = vcf.Reader(open(self.vcf_file.rstrip(),'r'))
 
+        counter=0
+        for record in tqdm(vcf_reader):
+            counter+=1
+
         MUTATIONS_dict={}
         MUTATIONS_counter=0
         EFFECTS_dict={}
         EFFECTS_counter=0
 
         # now iterate through the records found in the VCF file
-        for record in vcf_reader:
+        for record in tqdm(vcf_reader,total=counter):
 
             # be defensive and check we've only got one row per sample as expected
             assert len(record.samples)==1, "Row in VCF with more than one sample"

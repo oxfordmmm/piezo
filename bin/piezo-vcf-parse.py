@@ -18,7 +18,8 @@ if __name__ == "__main__":
     parser.add_argument("--genbank_file",default="H37Rv.gbk",help="the genbank file of the H37Rv M. tuberculosis wildtype_gene_collection genome")
     parser.add_argument("--catalogue_file",default="test_catalogue.csv",required=False,help="the path to the resistance catalogue")
     parser.add_argument("--catalogue_name",default="LID2015B",required=False,help="the name of the required catalogue, as defined in the resistance catalogue")
-    parser.add_argument("--verbose",action='store_true',default=False,help="whether to show progress using tqdm")
+    parser.add_argument("--progress",action='store_true',default=False,help="whether to show progress using tqdm")
+    parser.add_argument("--debug",action='store_true',default=False,help="print progress statements to STDOUT to help debugging")
     options = parser.parse_args()
 
     # check the log folder exists (it probably does)
@@ -27,20 +28,34 @@ if __name__ == "__main__":
     # create a datestamp for the log files
     datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
 
+    if options.debug:
+        print("instantiating a Resistance Catalogue..")
+
     # instantiate a Resistance Catalogue instance by passing a text file
     walker_catalogue=piezo.ResistanceCatalogue( input_file=options.catalogue_file,
                                                 log_file="logs/piezo-resistance-catalogue-"+datestamp+".csv",
                                                 genbank_file=options.genbank_file,
                                                 catalogue_name=options.catalogue_name )
 
+
     # retrieve the dictionary of genes from the Resistance Catalogue
     gene_panel=walker_catalogue.gene_panel
+
+
+    if options.debug:
+        print("creating a reference Gene Collection...")
 
     # setup a GeneCollection object that contains all the genes/loci we are interested in
     wildtype_gene_collection=piezo.GeneCollection(species="M. tuberculosis",genbank_file=options.genbank_file,gene_panel=gene_panel,log_file="logs/piezo-genes-"+datestamp+".csv")
 
+    if options.debug:
+        print("setting up a reference Gemucator object...")
+
     # setup a Gemucator object so you can check the mutations are valid
     reference_genome=gemucator.gemucator(genbank_file=options.genbank_file)
+
+    if options.debug:
+        print("creating a sample Gene Collection by copying the reference Gene Collection...")
 
     # create a copy of the wildtype_gene_collection genes which we will then alter according to the VCF file
     # need a deepcopy to ensure we take all the private variables etc with us, and point just take pointers
@@ -52,7 +67,13 @@ if __name__ == "__main__":
 
     metadata={}
 
+    if options.debug:
+        print("applying the VCF file to sample Gene Collection...")
+
     (n_hom,n_het,n_ref,n_null)=sample_gene_collection.apply_vcf_file(options.vcf_file)
+
+    if options.debug:
+        print("working out the Lineage using snpit...")
 
     # call snpit to work out the specific species of Mycobacteria
     tb=snpit.snpit(input_file=options.vcf_file)
@@ -116,7 +137,7 @@ if __name__ == "__main__":
 
             if reference_genome.valid_mutation(gene_mutation):
 
-                prediction=walker_catalogue.predict(gene_mutation=gene_mutation,verbose=options.verbose)
+                prediction=walker_catalogue.predict(gene_mutation=gene_mutation,verbose=options.progress)
 
                 # if it isn't an S, then a dictionary must have been returned
                 if prediction!="S":
