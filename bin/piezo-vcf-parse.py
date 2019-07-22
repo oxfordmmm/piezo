@@ -6,6 +6,7 @@ from datetime import datetime
 
 import pandas
 from tqdm import tqdm
+from Bio import SeqIO
 
 import piezo
 import snpit
@@ -16,11 +17,30 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--vcf_file",required=True,help="the path to a single VCF file")
     parser.add_argument("--genbank_file",default="H37Rv.gbk",help="the genbank file of the H37Rv M. tuberculosis wildtype_gene_collection genome")
-    parser.add_argument("--catalogue_file",default="test_catalogue.csv",required=False,help="the path to the resistance catalogue")
-    parser.add_argument("--catalogue_name",default="LID2015B",required=False,help="the name of the required catalogue, as defined in the resistance catalogue")
+    parser.add_argument("--catalogue_file",default=None,required=False,help="the path to the resistance catalogue")
+    parser.add_argument("--catalogue_name",default=None,required=False,help="the name of the required catalogue, as defined in the resistance catalogue")
+    parser.add_argument("--all_mutations",action='store_true',default=False,required=False,help="whether to list all mutations in a VCF file; exclusive with specifying a catalogue")
     parser.add_argument("--progress",action='store_true',default=False,help="whether to show progress using tqdm")
     parser.add_argument("--debug",action='store_true',default=False,help="print progress statements to STDOUT to help debugging")
     options = parser.parse_args()
+
+    if options.all_mutations:
+        assert (options.catalogue_file is None) and (options.catalogue_name is None), "can only specify one of --catalogue_file and --all_mutations, not both!"
+
+    if options.catalogue_file is not None:
+        assert (not options.all_mutations), "can only specify one of --catalogue_name and --all_mutations, not both!"
+
+    tb_lineage = snpit.SnpIt(
+        threshold = 10,
+        ignore_filter=False,
+        ignore_status=True,
+    )
+
+    results=tb_lineage.classify_vcf(options.vcf_file)
+
+    for sample_name, (percentage, lineage) in results.items():
+        output = snpit.snpit.format_output_string(sample_name, round(percentage, 2), lineage)
+        print(output)
 
     # check the log folder exists (it probably does)
     pathlib.Path('logs/').mkdir(parents=True, exist_ok=True)
@@ -28,19 +48,44 @@ if __name__ == "__main__":
     # create a datestamp for the log files
     datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
 
-    if options.debug:
-        print("instantiating a Resistance Catalogue..")
+    if options.catalogue_file is not None:
+        if options.debug:
+            print("instantiating a Resistance Catalogue..")
 
-    # instantiate a Resistance Catalogue instance by passing a text file
-    walker_catalogue=piezo.ResistanceCatalogue( input_file=options.catalogue_file,
-                                                log_file="logs/piezo-resistance-catalogue-"+datestamp+".csv",
-                                                genbank_file=options.genbank_file,
-                                                catalogue_name=options.catalogue_name )
+        # instantiate a Resistance Catalogue instance by passing a text file
+        walker_catalogue=piezo.ResistanceCatalogue( input_file=options.catalogue_file,
+                                                    log_file="logs/piezo-resistance-catalogue-"+datestamp+".csv",
+                                                    genbank_file=options.genbank_file,
+                                                    catalogue_name=options.catalogue_name )
 
 
-    # retrieve the dictionary of genes from the Resistance Catalogue
-    gene_panel=walker_catalogue.gene_panel
+        # retrieve the dictionary of genes from the Resistance Catalogue
+        gene_panel=walker_catalogue.gene_panel
 
+    elif options.all_mutations:
+
+        # if no catalogue is specified, simply build up a gene_panel that is simply all gene and locus_tag
+        # entries in the GenBank file
+        reference=SeqIO.read(options.genbank_file,'genbank')
+
+        gene_panel={}
+
+        for record in reference.features:
+            if record.type in ['CDS','rRNA']:
+                if 'gene' in record.qualifiers.keys():
+                    gene_name=record.qualifiers['gene'][0]
+                    if record.type=='rRNA':
+                        gene_panel[gene_name]="RNA"
+                    else:
+                        gene_panel[gene_name]="GENE"
+                elif 'locus_tag' in record.qualifiers.keys():
+                    gene_name=record.qualifiers['locus_tag'][0]
+                    if record.type=='rRNA':
+                        gene_panel[gene_name]="RNA"
+                    else:
+                        gene_panel[gene_name]="LOCUS"
+                else:
+                    continue
 
     if options.debug:
         print("creating a reference Gene Collection...")
@@ -76,7 +121,7 @@ if __name__ == "__main__":
         print("working out the Lineage using snpit...")
 
     # call snpit to work out the specific species of Mycobacteria
-    tb=snpit.snpit(input_file=options.vcf_file)
+    # tb=snpit.snpit(input_file=options.vcf_file)
 
     # store some useful features
     metadata["GENOME_N_HOM"]=n_hom
@@ -135,7 +180,7 @@ if __name__ == "__main__":
 
             gene_mutation=gene_name+"_"+mutation_name
 
-            if reference_genome.valid_mutation(gene_mutation):
+            if options.catalogue_file is not None and reference_genome.valid_mutation(gene_mutation):
 
                 prediction=walker_catalogue.predict(gene_mutation=gene_mutation,verbose=options.progress)
 
@@ -170,17 +215,19 @@ if __name__ == "__main__":
     MUTATIONS.set_index(["FILENAME","GENE","MUTATION"],inplace=True)
     MUTATIONS.to_csv(vcf_stem+"-mutations.csv",header=True)
 
-    EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["FILENAME","GENE","MUTATION","DRUG","PREDICTION"])
-    EFFECTS.set_index(["FILENAME","DRUG","GENE","MUTATION"],inplace=True)
-    EFFECTS.to_csv(vcf_stem+"-effects.csv",header=True)
+    if options.catalogue_file is not None:
+        EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["FILENAME","GENE","MUTATION","DRUG","PREDICTION"])
+        EFFECTS.set_index(["FILENAME","DRUG","GENE","MUTATION"],inplace=True)
+        EFFECTS.to_csv(vcf_stem+"-effects.csv",header=True)
 
-    wgs_prediction_string=""
-    for drug in walker_catalogue.drug_list:
-        metadata["WGS_PREDICTION_"+drug]=phenotype[drug]
+        wgs_prediction_string=""
+        for drug in walker_catalogue.drug_list:
+            metadata["WGS_PREDICTION_"+drug]=phenotype[drug]
 
     print("%40s %s" % ("VCF file", options.vcf_file))
-    print("%40s %s" % ("Catalogue", options.catalogue_file))
-    print("%40s %s" % ("Catalogue_name", options.catalogue_name))
+    if options.catalogue_file is not None:
+        print("%40s %s" % ("Catalogue", options.catalogue_file))
+        print("%40s %s" % ("Catalogue_name", options.catalogue_name))
     print("%40s %s" % ("Genbank file", options.genbank_file))
     for i in sorted(metadata):
         print("%40s %s" % (i, metadata[i]))

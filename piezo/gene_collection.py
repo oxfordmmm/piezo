@@ -9,7 +9,7 @@ import piezo
 
 class GeneCollection(object):
 
-    """Gene panel class that contains several CRyPTIC gene objects"""
+    """Gene panel class that contains several gene objects"""
 
     def __init__(self,species=None,genbank_file=None,log_file=None,gene_panel=None):
 
@@ -21,9 +21,9 @@ class GeneCollection(object):
 
         if self.species=="M. tuberculosis":
             # 4411532 is too small! This assumes no gene name has more than 7 characters
-            self.gene_panel_index=numpy.zeros(4420000,dtype='U7')
+            self.gene_panel_index=numpy.zeros(4420000,dtype='U10')
         else:
-            self.gene_panel_index=numpy.zeros(10000000,dtype='U7')
+            self.gene_panel_index=numpy.zeros(10000000,dtype='U10')
 
         # remember the config path
         self.config_path = '/'.join(('..','config'))
@@ -47,17 +47,15 @@ class GeneCollection(object):
         # open the VCF file from the EBI
         vcf_reader = vcf.Reader(open(self.vcf_file.rstrip(),'r'))
 
-        counter=0
-        for record in tqdm(vcf_reader):
-            counter+=1
-
         MUTATIONS_dict={}
         MUTATIONS_counter=0
         EFFECTS_dict={}
         EFFECTS_counter=0
 
+        print("not working out the length of the file")
+
         # now iterate through the records found in the VCF file
-        for record in tqdm(vcf_reader,total=counter):
+        for record in vcf_reader:
 
             # be defensive and check we've only got one row per sample as expected
             assert len(record.samples)==1, "Row in VCF with more than one sample"
@@ -146,7 +144,10 @@ class GeneCollection(object):
                                 # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
 
                                 if before!=after:
-                                    self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=model_value)
+                                    try:
+                                        self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=model_value)
+                                    except:
+                                        print(gene_name)
 
                                 # increment the position in the genome
                                 position+=1
@@ -203,7 +204,9 @@ class GeneCollection(object):
                         gene_name=record.qualifiers['locus_tag'][0]
                         found_record=True
 
-                if found_record:
+                if not found_record:
+                    continue
+                else:
 
                     # the start and end positions in the reference genome
                     start=record.location.start.position
