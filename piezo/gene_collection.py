@@ -1,21 +1,25 @@
 #! /usr/bin/env python
 
-import pkg_resources, os, logging
+import pkg_resources, os, logging, pathlib
 
-import numpy, vcf
+import numpy, pysam
 from Bio import SeqIO
 from tqdm import tqdm
 import piezo
+from snpit import Genotype
+from typing import Tuple, List, Dict, IO
 
 class GeneCollection(object):
 
     """Gene panel class that contains several gene objects"""
 
-    def __init__(self,species=None,genbank_file=None,log_file=None,gene_panel=None):
+    def __init__(self,species=None,genbank_file=None,log_file=None,gene_panel=None,ignore_filter=False, ignore_status=False):
 
-        # store the species name, study and instance
+        # store the species name, dictionary of genes and flags to control VCF reading behaviour
         self.species=species
         self.gene_panel=gene_panel
+        self.ignore_filter = ignore_filter
+        self.ignore_status = ignore_status
 
         logging.basicConfig(filename=log_file,level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
@@ -31,6 +35,43 @@ class GeneCollection(object):
         # self._parse_genbank_file(pkg_resources.resource_filename("piezo", self.config_path+"/"+genbank_file))
         self._parse_genbank_file(genbank_file)
 
+    def _is_record_invalid(self, record: pysam.VariantRecord) -> bool:
+        return self.gene_panel_index[record.pos]=="" or (
+            not self.ignore_filter and "PASS" not in record.filter.keys()
+        )
+
+    @staticmethod
+    def get_variant_for_genotype_in_vcf_record(
+        genotype: Genotype, record: pysam.VariantRecord
+    ) -> str:
+        """Retrieves the variant a genotype maps to for a given record.
+
+        Args:
+            genotype: The genotype call for the sample.
+            record: A VCF record object.
+        Returns:
+            str: A hyphen if the call is null (ie ./.) or the alt variant if
+            the call is alt. Returns an empty string if the call is ref or heterozygous.
+        """
+        if genotype.is_reference():
+            variant = ""
+        elif genotype.is_heterozygous():
+            variant = 'z'
+        elif genotype.is_alt():
+            alt_call = max(genotype.call())
+            variant = record.alleles[alt_call]
+        elif genotype.is_null():
+            variant = "-"
+        else:
+            raise UnexpectedGenotypeError(
+                """Got a genotype for which a Ref/Alt/Null call could not be
+                    determined: {}.\nPlease raise this with the developers.""".format(
+                    genotype.call()
+                )
+            )
+        return variant
+
+
     def apply_vcf_file(self,vcf_file):
 
         # remember the full path to the VCF file
@@ -45,7 +86,7 @@ class GeneCollection(object):
         n_hom=0
 
         # open the VCF file from the EBI
-        vcf_reader = vcf.Reader(open(self.vcf_file.rstrip(),'r'))
+        vcf_reader = pysam.VariantFile(self.vcf_file.rstrip())
 
         MUTATIONS_dict={}
         MUTATIONS_counter=0
@@ -57,58 +98,71 @@ class GeneCollection(object):
         # now iterate through the records found in the VCF file
         for record in vcf_reader:
 
-            # be defensive and check we've only got one row per sample as expected
-            assert len(record.samples)==1, "Row in VCF with more than one sample"
+            # check to see if the position is in one of the genes we are tracking or the filter is not PASS
+            if self.is_record_invalid(record):
+                continue
 
-            # if so, pull out the row
-            row=record.samples[0]
 
-            # record some basic statistics
-            if row['GT']=='./.':
-                n_null+=1
-            elif row.gt_type==0:
-                n_ref+=1
-            elif row.gt_type==1:
-                n_het+=1
-            elif row.gt_type==2:
-                n_hom+=1
+            for sample_idx, (sample_name, sample_info) in enumerate(
+                record.samples.items()
+            ):
+                if not self.ignore_status and sample_info["STATUS"] == "FAIL":
+                    continue
 
-            # find out our reference genome position
-            position=int(record.POS)
+                try:
+                    genotype = Genotype(*sample_info["GT"])
+                except TypeError as err:
+                    genotype = minos_gt_in_wrong_position_fix(record, sample_idx)
+                    if genotype is None:
+                        raise err
 
-            # and continue only if the mutation occurs in the one of the genes from the panel and if the call was actually made
-            if self.gene_panel_index[position]!="" and row.called:
+                variant = self.get_variant_for_genotype_in_vcf_record(genotype, record)
+
+                if not variant:
+                    continue
+
+                if genotype.is_null():
+                    n_null+=1
+                elif genotype.is_reference():
+                    n_ref+=1
+                elif genotype.is_alt():
+                    n_hom+=1
+                elif genotype.is_heterozygous():
+                    n_het+=1
+
+                # find out our reference genome position
+                position=int(record.pos)
 
                 # insist that the REF bases indeed match
-                vcf_bases=record.REF
+                vcf_bases=record.ref
                 gbk_bases=self.reference_genome[position-1:position-1+len(vcf_bases)].seq
+
                 if vcf_bases!=gbk_bases:
                     logging.warning("REF base(s) mismatch between VCF ("+vcf_bases+") and GENBANK ("+gbk_bases+") at position "+str(position)+" in VCF file "+vcf_file)
                 else:
-
                     # find out what gene we are in
                     gene_name=self.gene_panel_index[position]
 
                     # be really, really defensive and insist that gt_alleles works as I think it does
-                    assert len(row.gt_alleles)==2, "there are more alleles than expected!"
-
-                    (gt_before,gt_after)=(int(row.gt_alleles[0]),int(row.gt_alleles[1]))
-
-                    # also be defensive about the relatioship between gt_type and gt_before/after
-                    # these should all be 0/0 as are ref calls i.e. leave as reference
-                    if row.gt_type==0:
-                        assert gt_before==gt_after==0, "ref calls not working as expected in VCF file"
-
-                    # these are het calls
-                    elif row.gt_type==1:
-                        assert gt_before!=gt_after, "het calls not working as expected in VCF file"
-
-                    # whilst these are the homozygous variants
-                    elif row.gt_type==2:
-                        assert gt_before==gt_after
-
-                    else:
-                        raise ValueError("gt_type is not one of 0,1 or 2 but is instead "+str(row.gt_type))
+                    # assert len(row.gt_alleles)==2, "there are more alleles than expected!"
+                    #
+                    # (gt_before,gt_after)=(int(row.gt_alleles[0]),int(row.gt_alleles[1]))
+                    #
+                    # # also be defensive about the relatioship between gt_type and gt_before/after
+                    # # these should all be 0/0 as are ref calls i.e. leave as reference
+                    # if row.gt_type==0:
+                    #     assert gt_before==gt_after==0, "ref calls not working as expected in VCF file"
+                    #
+                    # # these are het calls
+                    # elif row.gt_type==1:
+                    #     assert gt_before!=gt_after, "het calls not working as expected in VCF file"
+                    #
+                    # # whilst these are the homozygous variants
+                    # elif row.gt_type==2:
+                    #     assert gt_before==gt_after
+                    #
+                    # else:
+                    #     raise ValueError("gt_type is not one of 0,1 or 2 but is instead "+str(row.gt_type))
 
                     coverage_before=row['COV'][0]
                     coverage_after=row['COV'][gt_after]
@@ -261,3 +315,10 @@ class GeneCollection(object):
         UniqueID="site."+site_id+".subj."+subject_id+".lab."+lab_id+".iso."+str(iso_id) #+".seq_reps."+seq_reps
 
         return(UniqueID,site_id,subject_id,lab_id,iso_id)
+
+def minos_gt_in_wrong_position_fix(record, sample_idx):
+    """A version of minos had GT in the second column instead of the first"""
+    info = str(record).strip().split("\t")[9 + sample_idx]
+    for field in info.split(":"):
+        if "/" in field:
+            return Genotype.from_string(field)
