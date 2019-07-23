@@ -19,16 +19,18 @@ class Gene(object):
         self.reverse=reverse
 
         # convert the provided strings into lower case and store
-        self.coding_nucleotides0_string=coding_nucleotides.lower()
-        self.coding_nucleotides1_string=coding_nucleotides.lower()
-        self.promoter_nucleotides0_string=promoter_nucleotides.lower()
-        self.promoter_nucleotides1_string=promoter_nucleotides.lower()
+        i=coding_nucleotides.lower()
+        self.coding_nucleotides_string=(i,i)
+
+        i=promoter_nucleotides.lower()
+        self.promoter_nucleotides_string=(i,i)
 
         # create numpy arrays of the bases
-        self.coding_nucleotides0=numpy.array([i for i in self.coding_nucleotides0_string])
-        self.coding_nucleotides1=numpy.array([i for i in self.coding_nucleotides1_string])
-        self.promoter_nucleotides0=numpy.array([i for i in self.promoter_nucleotides0_string])
-        self.promoter_nucleotides1=numpy.array([i for i in self.promoter_nucleotides1_string])
+        j=numpy.array([i for i in self.coding_nucleotides_string[0]])
+        self.coding_nucleotides=(j,j)
+
+        j=numpy.array([i for i in self.promoter_nucleotides_string[0]])
+        self.promoter_nucleotides=(j,j)
 
         # create an empty dict to store indels in later
         self.indels={}
@@ -37,12 +39,12 @@ class Gene(object):
         logging.basicConfig(filename="logs/piezo-gene-"+gene_name+"-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
         # how many nucleotides have we been given?
-        self.number_coding_nucleotides=len(self.coding_nucleotides0_string)
+        self.number_coding_nucleotides=len(self.coding_nucleotides_string[0])
         self.last_nucleotide_index=self.first_nucleotide_index+self.number_coding_nucleotides
         self.coding_nucleotide_index=numpy.array([i for i in range(self.first_nucleotide_index,self.last_nucleotide_index,1)])
         self.coding_nucleotides_position=numpy.arange(1,self.number_coding_nucleotides+1,1)
 
-        self.number_promoter_nucleotides=len(self.promoter_nucleotides_string)
+        self.number_promoter_nucleotides=len(self.promoter_nucleotides_string[0])
         self.promoter_nucleotides_position=numpy.arange(-1*(self.number_promoter_nucleotides),0,1)
 
         if self.reverse:
@@ -69,22 +71,23 @@ class Gene(object):
 
         self.mutation_ref=[]
         self.mutation_pos=[]
-        self.mutation_alt0=[]
-        self.mutation_alt1=[]
+        self.mutation_alt=([],[])
         self.coverage_ref=[]
-        self.coverage_alt0=[]
-        self.coverage_alt1=[]
+        self.coverage_alt=([],[])
         self.model_score=[]
+        self.model_percentile=[]
 
-        self.coding_coverage_ref=numpy.zeros(self.number_coding_nucleotides)
-        self.coding_coverage_alt0=numpy.zeros(self.number_coding_nucleotides)
-        self.coding_coverage_alt1=numpy.zeros(self.number_coding_nucleotides)
-        self.coding_score=numpy.zeros(self.number_coding_nucleotides)
-        self.coding_percentile=numpy.zeros(self.number_coding_nucleotides)
+        i=numpy.zeros(self.number_coding_nucleotides)
+        self.coding_coverage_ref=i
+        self.coding_coverage_alt=(i,i)
+        self.coding_score=i
+        self.coding_percentile=i
 
-        self.promoter_coverage_ref=numpy.zeros(len(self.promoter_nucleotides_string))
-        self.promoter_coverage_alt=numpy.zeros(len(self.promoter_nucleotides_string))
-        self.promoter_score=numpy.zeros(len(self.promoter_nucleotides_string))
+        j=numpy.zeros(len(self.promoter_nucleotides_string))
+        self.promoter_coverage_ref=j
+        self.promoter_coverage_alt=(j,j)
+        self.promoter_score=j
+        self.promoter_percentile=j
 
         # lastly, recompute the sequence
         self.update()
@@ -92,20 +95,20 @@ class Gene(object):
     def update(self):
 
         # recreate the strings from the arrays (as the latter are changed by mutate_bases)
-        self.coding_nucleotides_string="".join(map(str,self.coding_nucleotides))
-        self.promoter_nucleotides_string="".join(map(str,self.promoter_nucleotides))
+        self.coding_nucleotides_string="".join(map(str,self.coding_nucleotides[0])),"".join(map(str,self.coding_nucleotides[1]))
+        self.promoter_nucleotides_string="".join(map(str,self.promoter_nucleotides[0])),"".join(map(str,self.promoter_nucleotides[1]))
 
         # first find out the reverse complement if strand==-1 in the GenBank file
         if self.reverse:
-            self.coding_string=self._reverse_complement(self.coding_nucleotides_string)
-            self.coding_sequence=numpy.array([i for i in self.coding_string])
+            self.coding_string=self._reverse_complement(self.coding_nucleotides_string[0]),self._reverse_complement(self.coding_nucleotides_string[1])
+            self.coding_sequence=numpy.array([i for i in self.coding_string[0]]),numpy.array([i for i in self.coding_string[1]])
 
-            rev_nucs=self._reverse_complement(self.promoter_nucleotides_string)
-            self.promoter_sequence=numpy.array([i for i in rev_nucs])
+            rev_nucs=self._reverse_complement(self.promoter_nucleotides_string[0]),self._reverse_complement(self.promoter_nucleotides_string[1])
+            self.promoter_sequence=numpy.array([i for i in rev_nucs[0]]),numpy.array([i for i in rev_nucs[1]])
         else:
             self.coding_string=self.coding_nucleotides_string
-            self.coding_sequence=numpy.array([i for i in self.coding_string])
-            self.promoter_sequence=numpy.array([i for i in self.promoter_nucleotides_string])
+            self.coding_sequence=numpy.array([i for i in self.coding_string[0]]),numpy.array([i for i in self.coding_string[1]])
+            self.promoter_sequence=numpy.array([i for i in self.promoter_nucleotides_string[0]]),numpy.array([i for i in self.promoter_nucleotides_string[1]])
 
         # only translate the sequence if it is a protein coding element
         if self.element_type in ['GENE','LOCUS']:
@@ -113,13 +116,13 @@ class Gene(object):
 
     def _translate_sequence(self):
 
-        self.triplets=numpy.array([self.coding_string[i:i+3] for i in range(0,len(self.coding_string),3)])
+        self.triplets=numpy.array([self.coding_string[0][i:i+3] for i in range(0,len(self.coding_string[0]),3)]),numpy.array([self.coding_string[1][i:i+3] for i in range(0,len(self.coding_string[1]),3)])
 
         # now translate the triplets into amino acids using this new dictionary
-        self.amino_acids=numpy.array([self.triplet_to_amino_acid[i] for i in self.triplets])
+        self.amino_acids=numpy.array([self.triplet_to_amino_acid[i] for i in self.triplets[0]]),numpy.array([self.triplet_to_amino_acid[i] for i in self.triplets[1]])
 
         # and build the amino acid string
-        self.amino_acid_string="".join(map(str,self.amino_acids))
+        self.amino_acid_string="".join(map(str,self.amino_acids[0])),"".join(map(str,self.amino_acids[1]))
 
     def _setup_conversion_dicts(self):
 
@@ -134,12 +137,12 @@ class Gene(object):
         output=self.gene_name+" gene\n"
         output+=self.element_type.upper()+"\n"
         output+="%i nucleotides\n" % self.number_coding_nucleotides
-        output+=self.coding_nucleotides_string[0:13]+"..."+self.coding_nucleotides_string[-16:]+"\n"
+        output+=self.coding_nucleotides_string[0][0:13]+"..."+self.coding_nucleotides_string[0][-16:]+"\n"
         output+="%i to %i\n" % (self.coding_nucleotide_index[0],self.coding_nucleotide_index[-1])
         if self.element_type in ['GENE','LOCUS']:
             output+="%i nucleotides promoter\n" % (self.number_promoter_nucleotides)
             output+="%i amino acids\n" % self.number_amino_acids
-            output+=self.amino_acid_string[0:4]+"..."+self.amino_acid_string[-5:]+"\n"
+            output+=self.amino_acid_string[0][0:4]+"..."+self.amino_acid_string[0][-5:]+"\n"
             output+="%i to %i\n" % (self.amino_acid_position[0],self.amino_acid_position[-1])
         return(output)
 
@@ -157,9 +160,10 @@ class Gene(object):
 
         assert position>-101, "position not an integer >= -100 (for promoter)"
 
-        assert new_base.lower() in ['a','c','t','g','x','z'], "not been given a nucleotide!"
+        assert new_base[0].lower() in ['a','c','t','g','x','z'], "not been given a nucleotide!"
+        assert new_base[1].lower() in ['a','c','t','g','x','z'], "not been given a nucleotide!"
 
-        assert original_base!=new_base, "not a mutation!"
+        # assert original_base!=new_base, "not a mutation!"
 
         # is the position in the coding sequence or the promoter?
         if (position in self.coding_nucleotide_index):
