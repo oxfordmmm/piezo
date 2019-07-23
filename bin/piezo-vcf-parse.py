@@ -19,16 +19,20 @@ if __name__ == "__main__":
     parser.add_argument("--genbank_file",default="H37Rv.gbk",help="the genbank file of the H37Rv M. tuberculosis wildtype_gene_collection genome")
     parser.add_argument("--catalogue_file",default=None,required=False,help="the path to the resistance catalogue")
     parser.add_argument("--catalogue_name",default=None,required=False,help="the name of the required catalogue, as defined in the resistance catalogue")
-    parser.add_argument("--all_mutations",action='store_true',default=False,required=False,help="whether to list all mutations in a VCF file; exclusive with specifying a catalogue")
+    parser.add_argument("--all_genes",action='store_true',default=False,required=False,help="whether to list all mutations in a VCF file; exclusive with specifying a catalogue")
+    parser.add_argument("--specified_genes",nargs="+",required=False,help="a list of genes with spaces between them that we wish to retrieve mutations for")
     parser.add_argument("--progress",action='store_true',default=False,help="whether to show progress using tqdm")
     parser.add_argument("--debug",action='store_true',default=False,help="print progress statements to STDOUT to help debugging")
     options = parser.parse_args()
 
-    if options.all_mutations:
-        assert (options.catalogue_file is None) and (options.catalogue_name is None), "can only specify one of --catalogue_file and --all_mutations, not both!"
+    if options.all_genes:
+        assert (options.catalogue_file is None) and (options.catalogue_name is None), "can only specify one of --catalogue_file and --all_genes, not both!"
 
     if options.catalogue_file is not None:
-        assert (not options.all_mutations), "can only specify one of --catalogue_name and --all_mutations, not both!"
+        assert (not options.all_genes), "can only specify one of --catalogue_name and --all_genes, not both!"
+
+    if options.all_genes:
+        assert (options.specified_genes is None) and (options.catalogue_name is None), "can only specify one of --catalogue_file and --all_genes, not both!"
 
     tb_lineage = snpit.SnpIt(
         threshold = 10,
@@ -36,9 +40,10 @@ if __name__ == "__main__":
         ignore_status=True,
     )
 
-    results=tb_lineage.classify_vcf(options.vcf_file)
+    tb=tb_lineage.classify_vcf(options.vcf_file)
 
-    for sample_name, (percentage, lineage) in results.items():
+    for sample_name, (percentage, lineage) in tb.items():
+        print(lineage.lineage)
         output = snpit.snpit.format_output_string(sample_name, round(percentage, 2), lineage)
         print(output)
 
@@ -62,7 +67,7 @@ if __name__ == "__main__":
         # retrieve the dictionary of genes from the Resistance Catalogue
         gene_panel=walker_catalogue.gene_panel
 
-    elif options.all_mutations:
+    elif options.all_genes or options.specified_genes:
 
         # if no catalogue is specified, simply build up a gene_panel that is simply all gene and locus_tag
         # entries in the GenBank file
@@ -71,19 +76,30 @@ if __name__ == "__main__":
         gene_panel={}
 
         for record in reference.features:
+
             if record.type in ['CDS','rRNA']:
+
                 if 'gene' in record.qualifiers.keys():
+
                     gene_name=record.qualifiers['gene'][0]
-                    if record.type=='rRNA':
-                        gene_panel[gene_name]="RNA"
-                    else:
-                        gene_panel[gene_name]="GENE"
+
+                    if options.all_genes or (options.specified_genes and gene_name in options.specified_genes):
+
+                        if record.type=='rRNA':
+                            gene_panel[gene_name]="RNA"
+                        else:
+                            gene_panel[gene_name]="GENE"
+
                 elif 'locus_tag' in record.qualifiers.keys():
+
                     gene_name=record.qualifiers['locus_tag'][0]
-                    if record.type=='rRNA':
-                        gene_panel[gene_name]="RNA"
-                    else:
-                        gene_panel[gene_name]="LOCUS"
+
+                    if options.all_genes or (options.specified_genes and gene_name in options.specified_genes):
+
+                        if record.type=='rRNA':
+                            gene_panel[gene_name]="RNA"
+                        else:
+                            gene_panel[gene_name]="LOCUS"
                 else:
                     continue
 
