@@ -199,7 +199,7 @@ class Gene(object):
             assert numpy.sum(location)==1, "WARNING: trying to mutate "+self.gene_name+" at position "+str(position)+" from "+original_base+" to "+new_base+" and the mask has "+str(numpy.sum(location))+" locations"
 
             # check that the passed reference base matches what we think it should be
-            if self.promoter_nucleotides[location][0]!=original_base.lower():
+            if self.promoter_nucleotides[0][location]!=original_base.lower():
                 logging.warning(self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.promoter_nucleotides[location][0]+" in the GenBank file! (Genbank version mismatch?)" )
 
             # mutate to the new base

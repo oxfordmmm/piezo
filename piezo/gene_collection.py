@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import pkg_resources, os, logging, pathlib
+from collections import defaultdict
 
 import numpy, pysam
 from Bio import SeqIO
@@ -57,20 +58,21 @@ class GeneCollection(object):
             str: A hyphen if the call is null (ie ./.) or the alt variant if
             the call is alt. Returns an empty string if the call is ref or heterozygous.
         """
+
+        #  find out what the reference bases are
+        ref_bases=record.ref.lower()
+
         if genotype.is_reference():
             variant = ""
         elif genotype.is_heterozygous():
-            if genotype.call1==0:
-                variant = "",record.alleles[genotype.call2].lower()
-            elif genotype.call2==0:
-                variant = "",record.alleles[genotype.call1].lower()
-            else:
-                variant = record.alleles[genotype.call1],record.alleles[genotype.call2].lower()
+            variant = record.alleles[genotype.call1].lower(),record.alleles[genotype.call2].lower()
         elif genotype.is_alt():
             alt_call = max(genotype.call())
-            variant = record.alleles[alt_call].lower()
+            # variant = record.alleles[alt_call].lower()
+            variant = record.alleles[genotype.call1].lower(),record.alleles[genotype.call2].lower()
         elif genotype.is_null():
-            variant = "-"
+            variant = "x"*len(ref_bases),"x"*len(ref_bases)
+            print("NULL",ref_bases,variant)
         else:
             raise UnexpectedGenotypeError(
                 """Got a genotype for which a Ref/Alt/Null call could not be
@@ -79,8 +81,6 @@ class GeneCollection(object):
                 )
             )
 
-        #  find out what the reference bases are
-        ref_bases=record.ref.lower()
 
         return ref_bases,record.pos,variant
 
@@ -93,18 +93,10 @@ class GeneCollection(object):
         # remember the folder path and the name of the passed VCF file
         (self.vcf_folder,self.vcf_filename)=os.path.split(vcf_file)
 
-        n_null=0
-        n_het=0
-        n_ref=0
-        n_hom=0
+        n=defaultdict(int)
 
         # open the VCF file from the EBI
         vcf_reader = pysam.VariantFile(self.vcf_file.rstrip())
-
-        MUTATIONS_dict={}
-        MUTATIONS_counter=0
-        EFFECTS_dict={}
-        EFFECTS_counter=0
 
         # now iterate through the records found in the VCF file
         for record in tqdm(vcf_reader):
@@ -126,35 +118,24 @@ class GeneCollection(object):
                     if genotype is None:
                         raise err
 
-                # if it is simply reference, note and move on (speed)
+                # if it is simply called reference, note and move on (speed)
                 if genotype.is_reference():
-                    n_ref+=1
+                    n['ref']+=1
                     continue
 
                 # find out the variant
-                # if it is a het, a tuple is returned
-                ref_bases,position,var_bases = self.get_variant_for_genotype_in_vcf_record(genotype, record)
+                # if it is a het, a tuple is returned for alt_bases
+                ref_bases,position,alt_bases = self.get_variant_for_genotype_in_vcf_record(genotype, record)
 
                 # find out what gene we are in
                 gene_name=self.gene_panel_index[position]
 
-                print(position,gene_name,ref_bases,var_bases)
+                if genotype.is_null():
+                    print(position,gene_name,ref_bases,alt_bases)
 
                 # insist that the REF bases indeed match
                 gbk_bases=''.join(map(str,self.reference_genome_sequence[position-1:position-1+len(ref_bases)]))
                 assert ref_bases==gbk_bases, "REF base(s) mismatch between VCF ("+ref_bases+") and GENBANK ("+gbk_bases+") at position "+str(position)+" in VCF file "+vcf_file
-                    # logging.warning("REF base(s) mismatch between VCF ("+ref_bases+") and GENBANK ("+gbk_bases+") at position "+str(position)+" in VCF file "+vcf_file)
-                    # continue
-
-                if genotype.is_null():
-                    n_null+=1
-                    alt_bases='x' *len(ref_bases)
-                elif genotype.is_alt():
-                    n_hom+=1
-                elif genotype.is_heterozygous():
-                    n_het+=1
-                    print("HET CALL****************")
-                    # FIXME:
 
                 coverage_before=sample_info['COV'][0]
 
@@ -173,8 +154,39 @@ class GeneCollection(object):
                 else:
                     gt_conf_percentile=None
 
-                print("COVERAGE",coverage_before,coverage_after)
+                if genotype.is_null():
+                    n['null']+=1
+                    alt_bases='x' *len(ref_bases)
+                elif genotype.is_alt():
+                    n['hom']+=1
+                elif genotype.is_heterozygous():
+                    n['het']+=1
+                    # print("HET CALL****************")
+                    # FIXME:
 
+                # print("COVERAGE",coverage_before,coverage_after)
+
+                # automatically not true if a het call since alt_bases will be a tuple
+                # true for a SNP
+                if len(ref_bases)==len(alt_bases):
+
+                    # most of the time these will be SNPs so the loop will iterate just once
+                    for before,after in zip(ref_bases,alt_bases):
+
+                        # the mutate base is setup to handle one base at a time, so call it each time around the loop
+                        # note that this will be called even if before==after, but that is needed to deal with k-mers where not all bases have been mutated
+                        # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
+
+                        # if before!=after:
+
+                            # print(gene_name,position,before,after,coverage_before,coverage_after,gt_conf,ref_bases,alt_bases)
+                            # try:
+                            # self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=gt_conf)
+                            # except:
+                            #     print(gene_name,before,after)
+
+                        # increment the position in the genome
+                        position+=1
 
                 #
                 # if not genotype.is_heterozygous():
@@ -245,7 +257,7 @@ class GeneCollection(object):
         # force all the gene strings etc to be rebuilt now that the mutations have been applied
         self._update_genes()
 
-        return(n_hom,n_het,n_ref,n_null)
+        return(n['hom'],n['het'],n['ref'],n['null'])
 
     def _update_genes(self):
 
