@@ -6,36 +6,38 @@ import numpy, pysam
 from Bio import SeqIO
 from tqdm import tqdm
 import piezo
-from snpit.genotype import Genotype
+from snpit import Genotype
 from typing import Tuple, List, Dict, IO
 
 class GeneCollection(object):
 
     """Gene panel class that contains several gene objects"""
 
-    def __init__(self,species=None,genbank_file=None,log_file=None,gene_panel=None,promoter_length=100):
+    def __init__(self,species=None,genbank_file=None,log_file=None,gene_panel=None,ignore_filter=False, ignore_status=False):
 
         # store the species name, dictionary of genes and flags to control VCF reading behaviour
         self.species=species
         self.gene_panel=gene_panel
-        self.promoter_length=promoter_length
+        self.ignore_filter = ignore_filter
+        self.ignore_status = ignore_status
 
         logging.basicConfig(filename=log_file,level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
-        # load the supplied GenBank file
-        self.reference_genome=SeqIO.read(genbank_file,'genbank')
+        if self.species=="M. tuberculosis":
+            # 4411532 is too small! This assumes no gene name has more than 7 characters
+            self.gene_panel_index=numpy.zeros(4420000,dtype='U10')
+        else:
+            self.gene_panel_index=numpy.zeros(10000000,dtype='U10')
 
-        # find out the length of the genome
-        self.length_of_genome=len(self.reference_genome.seq)
+        # remember the config path
+        self.config_path = '/'.join(('..','config'))
 
-        # 4411532 is too small! This assumes no gene name has more than 9 characters
-        self.gene_panel_index=numpy.zeros(int(self.length_of_genome*1.05),dtype='U9')
-
+        # self._parse_genbank_file(pkg_resources.resource_filename("piezo", self.config_path+"/"+genbank_file))
         self._parse_genbank_file(genbank_file)
 
-    def _is_record_invalid(self, gene, ignore_filter, record: pysam.VariantRecord) -> bool:
-        return gene=="" or (
-            not ignore_filter and "PASS" not in record.filter.keys()
+    def _is_record_invalid(self, record: pysam.VariantRecord) -> bool:
+        return self.gene_panel_index[record.pos]=="" or (
+            not self.ignore_filter and "PASS" not in record.filter.keys()
         )
 
     @staticmethod
@@ -70,7 +72,7 @@ class GeneCollection(object):
         return variant
 
 
-    def apply_vcf_file(self,vcf_file,ignore_filter=False, ignore_status=False):
+    def apply_vcf_file(self,vcf_file):
 
         # remember the full path to the VCF file
         self.vcf_file=vcf_file
@@ -91,19 +93,20 @@ class GeneCollection(object):
         EFFECTS_dict={}
         EFFECTS_counter=0
 
+        print("not working out the length of the file")
+
         # now iterate through the records found in the VCF file
         for record in vcf_reader:
 
-            putative_gene=self.gene_panel_index[record.pos]
-
             # check to see if the position is in one of the genes we are tracking or the filter is not PASS
-            if self._is_record_invalid(putative_gene,ignore_filter,record):
+            if self.is_record_invalid(record):
                 continue
+
 
             for sample_idx, (sample_name, sample_info) in enumerate(
                 record.samples.items()
             ):
-                if not ignore_status and sample_info["STATUS"] == "FAIL":
+                if not self.ignore_status and sample_info["STATUS"] == "FAIL":
                     continue
 
                 try:
@@ -136,89 +139,95 @@ class GeneCollection(object):
 
                 if vcf_bases!=gbk_bases:
                     logging.warning("REF base(s) mismatch between VCF ("+vcf_bases+") and GENBANK ("+gbk_bases+") at position "+str(position)+" in VCF file "+vcf_file)
-                    continue
-                print(genotype.call1, genotype.call2)
-                print(sample_info.keys())
-                # find out what gene we are in
-                # gene_name=
-
-                print(sample_info['COV'])
-                print(sample_info['DP'])
-                print(sample_info['GT_CONF_PERCENTILE'])
-
-                coverage_before=sample_info['COV'][0]
-                if genotype.is_heterozygous():
-                    coverage_after=(sample_info['COV'][genotype.call1],sample_info['COV'][genotype.call2])
                 else:
-                    coverage_after=sample_info['COV'][genotype.call1]
+                    # find out what gene we are in
+                    gene_name=self.gene_panel_index[position]
 
-                if 'GT_CONF' in sample_info.keys():
-                    gt_conf=sample_info['GT_CONF']
-                else:
-                    gt_conf=None
-                if 'GT_CONF_PERCENTILE' in sample_info.keys():
-                    gt_conf_percentile=sample_info["GT_CONF_PERCENTILE"]
-                else:
-                    gt_conf_percentile=None
+                    # be really, really defensive and insist that gt_alleles works as I think it does
+                    # assert len(row.gt_alleles)==2, "there are more alleles than expected!"
+                    #
+                    # (gt_before,gt_after)=(int(row.gt_alleles[0]),int(row.gt_alleles[1]))
+                    #
+                    # # also be defensive about the relatioship between gt_type and gt_before/after
+                    # # these should all be 0/0 as are ref calls i.e. leave as reference
+                    # if row.gt_type==0:
+                    #     assert gt_before==gt_after==0, "ref calls not working as expected in VCF file"
+                    #
+                    # # these are het calls
+                    # elif row.gt_type==1:
+                    #     assert gt_before!=gt_after, "het calls not working as expected in VCF file"
+                    #
+                    # # whilst these are the homozygous variants
+                    # elif row.gt_type==2:
+                    #     assert gt_before==gt_after
+                    #
+                    # else:
+                    #     raise ValueError("gt_type is not one of 0,1 or 2 but is instead "+str(row.gt_type))
 
-                # ignore ref calls (0/0) and only consider homozygous, null and hets
-                if row.gt_type==2 or row['GT']=='./.' or row.gt_type==1:
+                    coverage_before=row['COV'][0]
+                    coverage_after=row['COV'][gt_after]
+                    model_value=row['GT_CONF']
 
-                    # find out what the bases are in tge GenBank reference genome
-                    ref_bases=record.REF
+                    # ignore ref calls (0/0) and only consider homozygous, null and hets
+                    if row.gt_type==2 or row['GT']=='./.' or row.gt_type==1:
 
-                    # insert 'x' base for low-coverage nulls
-                    if row['GT']=='./.':
-                        alt_bases='x' * len(ref_bases)
+                        # find out what the bases are in tge GenBank reference genome
+                        ref_bases=record.REF
 
-                    # insert 'z' base for hets
-                    elif row.gt_type==1:
-                        alt_bases='z' * len(ref_bases)
+                        # insert 'x' base for low-coverage nulls
+                        if row['GT']=='./.':
+                            alt_bases='x' * len(ref_bases)
 
-                    # otherwise it must be a homozygous call so use the genotype to determine the correct alt
-                    else:
-                        alt_bases=str(record.ALT[gt_after-1])
+                        # insert 'z' base for hets
+                        elif row.gt_type==1:
+                            alt_bases='z' * len(ref_bases)
 
-                    # we are now in a position to either make a mutation (SNP) or remember an INDEL
-                    # the majority of the below will be SNPs, but some will be e.g. 5-mers in gyrA with 2 SNPs in close proximity
-                    if len(ref_bases)==len(alt_bases):
+                        # otherwise it must be a homozygous call so use the genotype to determine the correct alt
+                        else:
+                            alt_bases=str(record.ALT[gt_after-1])
 
-                        # most of the time these will be SNPs so the loop will iterate just once
-                        for before,after in zip(ref_bases,alt_bases):
+                        # we are now in a position to either make a mutation (SNP) or remember an INDEL
+                        # the majority of the below will be SNPs, but some will be e.g. 5-mers in gyrA with 2 SNPs in close proximity
+                        if len(ref_bases)==len(alt_bases):
 
-                            # the mutate base is setup to handle one base at a time, so call it each time around the loop
-                            # note that this will be called even if before==after, but that is needed to deal with k-mers where not all bases have been mutated
-                            # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
+                            # most of the time these will be SNPs so the loop will iterate just once
+                            for before,after in zip(ref_bases,alt_bases):
 
-                            if before!=after:
-                                try:
-                                    self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=model_value)
-                                except:
-                                    print(gene_name)
+                                # the mutate base is setup to handle one base at a time, so call it each time around the loop
+                                # note that this will be called even if before==after, but that is needed to deal with k-mers where not all bases have been mutated
+                                # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
 
+                                if before!=after:
+                                    try:
+                                        self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=model_value)
+                                    except:
+                                        print(gene_name)
 
-                    elif len(ref_bases)!=len(alt_bases):
+                                # increment the position in the genome
+                                position+=1
 
-                        # find out where the mutation is
-                        (type,location)=self.gene[gene_name].return_location(position)
+                        elif len(ref_bases)!=len(alt_bases):
 
-                        # be defensive; the above only returns None if the position isn't in the gene
-                        if type!=None:
+                            # find out where the mutation is
+                            (type,location)=self.gene[gene_name].return_location(position)
 
-                            element_type=self.gene[gene_name].element_type
+                            # be defensive; the above only returns None if the position isn't in the gene
+                            if type!=None:
 
-                            if type=="CDS":
-                                cds=True
-                                promoter=False
-                            elif type=="PROMOTER":
-                                cds=False
-                                promoter=True
-                            else:
-                                raise ValueError("Only CDS or PROMOTER can be returned: was given "+type)
+                                element_type=self.gene[gene_name].element_type
 
-                            mutation_name=str(location)+"_indel"
+                                if type=="CDS":
+                                    cds=True
+                                    promoter=False
+                                elif type=="PROMOTER":
+                                    cds=False
+                                    promoter=True
+                                else:
+                                    raise ValueError("Only CDS or PROMOTER can be returned: was given "+type)
 
-                            self.gene[gene_name].store_indel(mutation=mutation_name,ref=ref_bases,alt=alt_bases,coverage=[coverage_before,coverage_after],model_score=model_value,genome_position=position)
+                                mutation_name=str(location)+"_indel"
+
+                                self.gene[gene_name].store_indel(mutation=mutation_name,ref=ref_bases,alt=alt_bases,coverage=[coverage_before,coverage_after],model_score=model_value,genome_position=position)
 
 
         return(n_hom,n_het,n_ref,n_null)
@@ -226,6 +235,9 @@ class GeneCollection(object):
     def _parse_genbank_file(self,genbank_file):
 
         self.gene={}
+
+        # read in the M. tuberculosis reference genome
+        self.reference_genome=SeqIO.read(genbank_file,'genbank')
 
         # iterate through all the features in the genomes
         for record in self.reference_genome.features:
@@ -239,53 +251,55 @@ class GeneCollection(object):
                 if 'gene' in record.qualifiers.keys():
                     if any(i in record.qualifiers['gene'] for i in self.gene_panel):
                         gene_name=record.qualifiers['gene'][0]
-                    else:
-                        continue
+                        found_record=True
 
                 elif 'locus_tag' in record.qualifiers.keys():
                     if any(i in record.qualifiers['locus_tag'] for i in self.gene_panel):
                         gene_name=record.qualifiers['locus_tag'][0]
+                        found_record=True
+
+                if not found_record:
+                    continue
+                else:
+
+                    # the start and end positions in the reference genome
+                    start=record.location.start.position
+                    end=record.location.end.position
+
+                    # and finally whether the strand (which if -1 means reverse complement)
+                    strand=record.location.strand.real
+
+                    # retrieve the number of the first protein coding codon (usually 1)
+                    if self.gene_panel[gene_name] in ['GENE','LOCUS']:
+                        codon_start=record.qualifiers['codon_start']
+                        first_amino_acid_position=int(codon_start[0])
+                        default_promoter_length=100
+                    elif self.gene_panel[gene_name]=='RNA':
+                        first_amino_acid_position=1
+                        default_promoter_length=0
                     else:
-                        continue
+                        raise Exception("gene does not have correct type specified in gene panel file")
 
-                # the start and end positions in the reference genome
-                start=record.location.start.position
-                end=record.location.end.position
+                    coding_nucleotides=self.reference_genome[start:end]
+                    first_nucleotide_index=start+1
 
-                # and finally the direction of the strand (which if -1 means reverse complement)
-                strand=record.location.strand.real
+                    if strand==1:
+                        reverse=False
+                        length_promoter=numpy.sum(self.gene_panel_index[start-default_promoter_length:start]=="")
+                        self.gene_panel_index[start-length_promoter:end+1]=gene_name
+                        promoter_nucleotides=self.reference_genome[start-length_promoter:start]
+                    else:
+                        reverse=True
+                        length_promoter=numpy.sum(self.gene_panel_index[end:end+default_promoter_length]=="")
+                        self.gene_panel_index[start:end+1+length_promoter]=gene_name
+                        promoter_nucleotides=self.reference_genome[end:end+length_promoter]
 
-                # retrieve the number of the first protein coding codon (usually 1)
-                if self.gene_panel[gene_name] in ['GENE','LOCUS']:
-                    codon_start=record.qualifiers['codon_start']
-                    first_amino_acid_position=int(codon_start[0])
-                    promoter_length=self.promoter_length
-                elif self.gene_panel[gene_name]=='RNA':
-                    first_amino_acid_position=1
-                    promoter_length=0
-                else:
-                    raise Exception("gene does not have correct type specified in gene panel file")
+                    # store them as a string
+                    coding_nucleotides_string=str(coding_nucleotides.seq)
+                    promoter_nucleotides_string=str(promoter_nucleotides.seq)
 
-                coding_nucleotides=self.reference_genome[start:end]
-                first_nucleotide_index=start+1
-
-                if strand==1:
-                    reverse=False
-                    length_promoter=numpy.sum(self.gene_panel_index[start-promoter_length:start]=="")
-                    self.gene_panel_index[start-length_promoter:end+1]=gene_name
-                    promoter_nucleotides=self.reference_genome[start-length_promoter:start]
-                else:
-                    reverse=True
-                    length_promoter=numpy.sum(self.gene_panel_index[end:end+promoter_length]=="")
-                    self.gene_panel_index[start:end+1+length_promoter]=gene_name
-                    promoter_nucleotides=self.reference_genome[end:end+length_promoter]
-
-                # store them as a string
-                coding_nucleotides_string=str(coding_nucleotides.seq)
-                promoter_nucleotides_string=str(promoter_nucleotides.seq)
-
-                # create a Gene object defined using the above information
-                self.gene[gene_name]=piezo.Gene(gene_name=gene_name,coding_nucleotides=coding_nucleotides_string,promoter_nucleotides=promoter_nucleotides_string,first_nucleotide_index=first_nucleotide_index,first_amino_acid_position=first_amino_acid_position,reverse=reverse,element_type=self.gene_panel[gene_name])
+                    # create a Gene object defined using the above information
+                    self.gene[gene_name]=piezo.Gene(gene_name=gene_name,coding_nucleotides=coding_nucleotides_string,promoter_nucleotides=promoter_nucleotides_string,first_nucleotide_index=first_nucleotide_index,first_amino_acid_position=first_amino_acid_position,reverse=reverse,element_type=self.gene_panel[gene_name])
 
 
     def _parse_vcf_filename(self,filename):
