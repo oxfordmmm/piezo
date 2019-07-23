@@ -1,6 +1,6 @@
 # piezo
 
-Takes a Clockwork VCF, a Genetic Catalogue and the associated GenBank file and predicts the effect on the relevant antibiotics.
+Takes a Clockwork VCF, a Genetic Catalogue and the associated GenBank file and predicts the effect on the relevant antibiotics. This code was developed as part of the [CRyPTIC](http://www.crypticproject.org) international tuberculosis consortium. If you would like to use the software commercially, please consult the LICENCE file.
 
 ## Example
 
@@ -8,9 +8,9 @@ A more detailed description can be found in the Jupyter Notebook in the root of 
 
 ```
 # setup a catalogue
-cat=piezo.ResistanceCatalogue(input_file="config/LID2015-RSU-catalogue-v1.0-H37rV_v2.csv",
-                              genbank_file="config/H37rV_v2.gbk",
-                              catalogue_name="LID2015B")
+cat=piezo.ResistanceCatalogue(input_file="config/NEJM2018-RSU-catalogue-H37rV_v3.csv",
+                              genbank_file="config/H37rV_v3.gbk",
+                              catalogue_name="NEJM2018")
 
 # use the predict method
 print(cat.predict(gene_mutation='rpoB_S450L'))
@@ -55,15 +55,17 @@ If you've done prerequisites 1 and 2, it hopefully will just work...
 
 ```
 $ ls config/
-H37rV_v2.gbk                            LID2015-RSU-catalogue-v1.0-H37rV_v2.csv
-H37rV_v3.gbk
+H37rV_v2.gbk                            LID2015-RSU-catalogue-H37rV_v2.csv
+H37rV_v3.gbk                            NEJM2018-RSU-catalogue-H37rV_v3.csv
 ```
 
-1. A catalogue based on this paper
+1. Catalogues based on these papers
 
-Walker TM, Kohl TA, Omar S V, Hedge J, Del Ojo Elias C, et al. Whole-genome sequencing for prediction of Mycobacterium tuberculosis drug susceptibility and resistance: a retrospective cohort study. Lancet Infec Dis 2015;15:1193–202. doi:10.1016/S1473-3099(15)00062-6
+Walker TM, Kohl TA, Omar S V, Hedge J, Del Ojo Elias C, et al. Whole-genome sequencing for prediction of Mycobacterium tuberculosis drug susceptibility and resistance: a retrospective cohort study. Lancet Infec Dis 2015;15:1193–202. [https://doi.org/10.1016/S1473-3099(15)00062-6](doi:10.1016/S1473-3099(15)00062-6
 
-is included in `config/LID2015-RSU-catalogue-v1.0-H37rV_v2.csv`. As suggested by the filename, it is only relevant when used alongside version 2 of the H37rV GenBank catalogue (it will fail if you try using v3 since some of the genes are renamed and shifted).
+The CRyPTIC Consortium, 100000 Genomes Project. Prediction of Susceptibility to First-Line Tuberculosis Drugs by DNA Sequencing. N Engl J Med 2018;379:1403–1415. [http://doi.org/10.1056/NEJMoa1800474](doi:10.1056/NEJMoa1800474)
+
+are included in `config/`. The first is only relevant when used alongside version 2 of the H37rV GenBank catalogue and the second with version 3 (it will fail if you try using the wrong version since some of the genes are renamed and shifted).
 
 2. H37rV GenBank files
 
@@ -71,13 +73,13 @@ Both versions 2 and 3 are included. Version 3 is the current version, but was on
 
 ## End-to-end example
 
-In the `piezo` folder there is a single VCF file in `examples/01/01.vcf`. To analyse it run this command
+In the `piezo` folder there is are two VCF files in `examples/01/01.vcf` and `examples/02/02.vcf`. To analyse it run this command
 
 ```
-$ piezo-vcf-parse.py  --vcf_file examples/01/01.vcf 
-                      --genbank_file config/H37rV_v2.gbk 
-                      --resistance_catalogue config/LID2015-RSU-catalogue-v1.0-H37rV_v2.csv 
-                      --catalogue_name LID2015B
+$ piezo-vcf-parse.py  --vcf_file examples/01/01.vcf\
+                      --genbank_file config/H37rV_v3.gbk\
+                      --catalogue_file config/NEJM2018-RSU-catalogue-H37rV_v3.csv\
+                      --catalogue_name NEJM2018
 ```
 
 You should see a series of lines written to STDOUT with the high-level predictions, some information about Lineage (gleaned using [snpit](https://github.com/philipwfowler/snpit)). In addition, two CSVs are written here

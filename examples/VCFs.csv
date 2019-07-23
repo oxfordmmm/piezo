@@ -1,0 +1,14 @@
+NAME,DESCRIPTION,RUN,VCF_VERSION,MINOS_VERSION,AUTHOR,AMI_RESULT,CAP_RESULT,CIP_RESULT,EMB_RESULT,INH_RESULT,KAN_RESULT,LEV_RESULT,MXF_RESULT,OXF_RESULT,PZA_RESULT,RIF_RESULT,STM_RESULT
+1,Sample Clockwork VCF,TRUE,VCFv4.2,0.4.1,Philip Fowler,U,U,R,R,R,U,R,R,R,R,R,R
+2,Sample Clockwork VCF,TRUE,VCFv4.2,0.4.1,Philip Fowler,U,U,U,S,R,U,U,U,U,S,S,R
+3,rpoB_S450L,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,S,S,S,S,S,S,S,S,S,R,S
+4,katG_S315T,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,S,S,S,R,S,S,S,S,S,S,S
+5,pncA_V139A,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,S,S,S,S,S,S,S,S,R,S,S
+6,embB_M306V,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,S,S,R,S,S,S,S,S,S,S,S
+7,U test,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,S,S,S,S,S,S,S,S,S,U,S
+8,S test,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,S,S,S,S,S,S,S,S,S,S,S
+9,Wrong position,FALSE,VCFv4.2,0.4.1,Philip Fowler,None,None,None,None,None,None,None,None,None,None,None,None
+10,Bad base in REF,FALSE,VCFv4.2,0.4.1,Philip Fowler,None,None,None,None,None,None,None,None,None,None,None,None
+11,Bad base in ALT,FALSE,VCFv4.2,0.4.1,Philip Fowler,None,None,None,None,None,None,None,None,None,None,None,None
+12,gid_E92D,TRUE,VCFv4.2,0.4.1,Philip Fowler,U,U,S,S,S,U,S,S,S,S,S,U
+13,gyrA_D94G,TRUE,VCFv4.2,0.4.1,Philip Fowler,S,S,R,S,S,S,R,R,R,S,S,S
