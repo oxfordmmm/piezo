@@ -15,25 +15,28 @@ class GeneCollection(object):
 
     def __init__(self,species=None,genbank_file=None,log_file=None,gene_panel=None,ignore_filter=False, ignore_status=False):
 
-        # store the species name, dictionary of genes and flags to control VCF reading behaviour
+        # store the species name, dictionary of genes and length of promoter
         self.species=species
         self.gene_panel=gene_panel
         self.ignore_filter = ignore_filter
         self.ignore_status = ignore_status
 
+        # setup a stream to write a log file to
         logging.basicConfig(filename=log_file,level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
-        if self.species=="M. tuberculosis":
-            # 4411532 is too small! This assumes no gene name has more than 7 characters
-            self.gene_panel_index=numpy.zeros(4420000,dtype='U10')
-        else:
-            self.gene_panel_index=numpy.zeros(10000000,dtype='U10')
+        # load the supplied GenBank file
+        self.reference_genome=SeqIO.read(genbank_file,'genbank')
+
+        # convert to a numpy array at the first opportunity since slicing BioPython is between 10 and 50,000 times slower!
+        self.reference_genome_sequence=numpy.array([i for i in str(self.reference_genome.seq)])
+
+        # find out the length of the genome
+        self.length_of_genome=len(self.reference_genome_sequence)
 
         # remember the config path
         self.config_path = '/'.join(('..','config'))
 
-        # self._parse_genbank_file(pkg_resources.resource_filename("piezo", self.config_path+"/"+genbank_file))
-        self._parse_genbank_file(genbank_file)
+        self._parse_genbank_file()
 
     def _is_record_invalid(self, record: pysam.VariantRecord) -> bool:
         return self.gene_panel_index[record.pos]=="" or (
@@ -135,10 +138,34 @@ class GeneCollection(object):
 
                 # insist that the REF bases indeed match
                 vcf_bases=record.ref
-                gbk_bases=self.reference_genome[position-1:position-1+len(vcf_bases)].seq
+                gbk_bases=''.join(map(str,self.reference_genome_sequence[position-1:position-1+len(vcf_bases)]))
 
                 if vcf_bases!=gbk_bases:
                     logging.warning("REF base(s) mismatch between VCF ("+vcf_bases+") and GENBANK ("+gbk_bases+") at position "+str(position)+" in VCF file "+vcf_file)
+                    continue
+                print(genotype.call1, genotype.call2)
+                print(sample_info.keys())
+                # find out what gene we are in
+                # gene_name=
+
+                print(sample_info['COV'])
+                print(sample_info['DP'])
+                print(sample_info['GT_CONF_PERCENTILE'])
+
+                coverage_before=sample_info['COV'][0]
+
+                # store the coverage as a tuple if it is a hetcall
+                if genotype.is_heterozygous():
+                    coverage_after=(sample_info['COV'][genotype.call1],sample_info['COV'][genotype.call2])
+                else:
+                    coverage_after=sample_info['COV'][genotype.call1]
+
+                if 'GT_CONF' in sample_info.keys():
+                    gt_conf=sample_info['GT_CONF']
+                else:
+                    gt_conf=None
+                if 'GT_CONF_PERCENTILE' in sample_info.keys():
+                    gt_conf_percentile=sample_info["GT_CONF_PERCENTILE"]
                 else:
                     # find out what gene we are in
                     gene_name=self.gene_panel_index[position]
@@ -229,10 +256,17 @@ class GeneCollection(object):
 
                                 self.gene[gene_name].store_indel(mutation=mutation_name,ref=ref_bases,alt=alt_bases,coverage=[coverage_before,coverage_after],model_score=model_value,genome_position=position)
 
+        # force all the gene strings etc to be rebuilt now that the mutations have been applied
+        self._update_genes()
 
         return(n_hom,n_het,n_ref,n_null)
 
-    def _parse_genbank_file(self,genbank_file):
+    def _update_genes(self):
+
+        for gene_name in self.gene_panel:
+            self.gene[gene_name].update()
+
+    def _parse_genbank_file(self):
 
         self.gene={}
 
@@ -243,63 +277,60 @@ class GeneCollection(object):
         for record in self.reference_genome.features:
 
             # check that the record is a Coding Sequence and it is also a gene
-            if record.type in ['CDS','rRNA']:
+            if record.type not in ['CDS','rRNA']:
+                continue
 
-                found_record=False
-
-                # if it is a gene
-                if 'gene' in record.qualifiers.keys():
-                    if any(i in record.qualifiers['gene'] for i in self.gene_panel):
-                        gene_name=record.qualifiers['gene'][0]
-                        found_record=True
-
-                elif 'locus_tag' in record.qualifiers.keys():
-                    if any(i in record.qualifiers['locus_tag'] for i in self.gene_panel):
-                        gene_name=record.qualifiers['locus_tag'][0]
-                        found_record=True
-
-                if not found_record:
-                    continue
+            # if it is a gene
+            if 'gene' in record.qualifiers.keys():
+                if any(i in record.qualifiers['gene'] for i in self.gene_panel):
+                    gene_name=record.qualifiers['gene'][0]
                 else:
+                    continue
 
-                    # the start and end positions in the reference genome
-                    start=record.location.start.position
-                    end=record.location.end.position
+            elif 'locus_tag' in record.qualifiers.keys():
+                if any(i in record.qualifiers['locus_tag'] for i in self.gene_panel):
+                    gene_name=record.qualifiers['locus_tag'][0]
+                else:
+                    continue
 
-                    # and finally whether the strand (which if -1 means reverse complement)
-                    strand=record.location.strand.real
+            # the start and end positions in the reference genome
+            start=record.location.start.position
+            end=record.location.end.position
 
-                    # retrieve the number of the first protein coding codon (usually 1)
-                    if self.gene_panel[gene_name] in ['GENE','LOCUS']:
-                        codon_start=record.qualifiers['codon_start']
-                        first_amino_acid_position=int(codon_start[0])
-                        default_promoter_length=100
-                    elif self.gene_panel[gene_name]=='RNA':
-                        first_amino_acid_position=1
-                        default_promoter_length=0
-                    else:
-                        raise Exception("gene does not have correct type specified in gene panel file")
+            # and finally the direction of the strand (which if -1 means reverse complement)
+            strand=record.location.strand.real
 
-                    coding_nucleotides=self.reference_genome[start:end]
-                    first_nucleotide_index=start+1
+            # retrieve the number of the first protein coding codon (usually 1)
+            if self.gene_panel[gene_name] in ['GENE','LOCUS']:
+                codon_start=record.qualifiers['codon_start']
+                first_amino_acid_position=int(codon_start[0])
+                promoter_length=self.promoter_length
+            elif self.gene_panel[gene_name]=='RNA':
+                first_amino_acid_position=1
+                promoter_length=0
+            else:
+                raise Exception("gene does not have correct type specified in gene panel file")
 
-                    if strand==1:
-                        reverse=False
-                        length_promoter=numpy.sum(self.gene_panel_index[start-default_promoter_length:start]=="")
-                        self.gene_panel_index[start-length_promoter:end+1]=gene_name
-                        promoter_nucleotides=self.reference_genome[start-length_promoter:start]
-                    else:
-                        reverse=True
-                        length_promoter=numpy.sum(self.gene_panel_index[end:end+default_promoter_length]=="")
-                        self.gene_panel_index[start:end+1+length_promoter]=gene_name
-                        promoter_nucleotides=self.reference_genome[end:end+length_promoter]
+            coding_nucleotides=self.reference_genome_sequence[start:end]
+            first_nucleotide_index=start+1
 
-                    # store them as a string
-                    coding_nucleotides_string=str(coding_nucleotides.seq)
-                    promoter_nucleotides_string=str(promoter_nucleotides.seq)
+            if strand==1:
+                reverse=False
+                length_promoter=numpy.sum(self.gene_panel_index[start-promoter_length:start]=="")
+                self.gene_panel_index[start-length_promoter:end+1]=gene_name
+                promoter_nucleotides=self.reference_genome_sequence[start-length_promoter:start]
+            else:
+                reverse=True
+                length_promoter=numpy.sum(self.gene_panel_index[end:end+promoter_length]=="")
+                self.gene_panel_index[start:end+1+length_promoter]=gene_name
+                promoter_nucleotides=self.reference_genome_sequence[end:end+length_promoter]
 
-                    # create a Gene object defined using the above information
-                    self.gene[gene_name]=piezo.Gene(gene_name=gene_name,coding_nucleotides=coding_nucleotides_string,promoter_nucleotides=promoter_nucleotides_string,first_nucleotide_index=first_nucleotide_index,first_amino_acid_position=first_amino_acid_position,reverse=reverse,element_type=self.gene_panel[gene_name])
+            # convert them both into strings
+            coding_nucleotides_string="".join(map(str,coding_nucleotides))
+            promoter_nucleotides_string="".join(map(str,promoter_nucleotides))
+
+            # create a Gene object defined using the above information
+            self.gene[gene_name]=piezo.Gene(gene_name=gene_name,coding_nucleotides=coding_nucleotides_string,promoter_nucleotides=promoter_nucleotides_string,first_nucleotide_index=first_nucleotide_index,first_amino_acid_position=first_amino_acid_position,reverse=reverse,element_type=self.gene_panel[gene_name])
 
 
     def _parse_vcf_filename(self,filename):
