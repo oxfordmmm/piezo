@@ -95,7 +95,7 @@ class GeneCollection(object):
 
         n=defaultdict(int)
 
-        # open the VCF file from the EBI
+        # open the supplied VCF file
         vcf_reader = pysam.VariantFile(self.vcf_file.rstrip())
 
         # now iterate through the records found in the VCF file
