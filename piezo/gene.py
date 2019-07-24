@@ -13,24 +13,19 @@ class Gene(object):
 
     def __init__(self,gene_name=None,coding_nucleotides=None,promoter_nucleotides=None,first_amino_acid_position=1,first_nucleotide_index=None,reverse=False,element_type=None):
 
+        # store various arguments as class variables
         self.gene_name=gene_name
         self.element_type=element_type
         self.first_nucleotide_index=first_nucleotide_index
         self.reverse=reverse
 
-        # convert the provided strings into lower case and store
-        i=coding_nucleotides.lower()
-        self.coding_nucleotides_string=(i,i)
-
-        i=promoter_nucleotides.lower()
-        self.promoter_nucleotides_string=(i,i)
+        # convert the provided strings into lower case and store as a diploid tuple
+        self.coding_nucleotides_string=(coding_nucleotides.lower(),coding_nucleotides.lower())
+        self.promoter_nucleotides_string=(promoter_nucleotides.lower(),promoter_nucleotides.lower())
 
         # create numpy arrays of the bases
-        j=numpy.array([i for i in self.coding_nucleotides_string[0]])
-        self.coding_nucleotides=(j,j)
-
-        j=numpy.array([i for i in self.promoter_nucleotides_string[0]])
-        self.promoter_nucleotides=(j,j)
+        self.coding_nucleotides=(numpy.array([i for i in self.coding_nucleotides_string[0]]),numpy.array([i for i in self.coding_nucleotides_string[1]]))
+        self.promoter_nucleotides=(numpy.array([i for i in self.promoter_nucleotides_string[0]]),numpy.array([i for i in self.promoter_nucleotides_string[0]]))
 
         # create an empty dict to store indels in later
         self.indels={}
@@ -40,11 +35,20 @@ class Gene(object):
 
         # how many nucleotides have we been given?
         self.number_coding_nucleotides=len(self.coding_nucleotides_string[0])
+
+        # work out the index of the last nucleotide
         self.last_nucleotide_index=self.first_nucleotide_index+self.number_coding_nucleotides
+
+        # thereby create an array of genome positions (i.e indices) to allow numpy boolean operations later
         self.coding_nucleotide_index=numpy.array([i for i in range(self.first_nucleotide_index,self.last_nucleotide_index,1)])
+
+        # same, but with a 1-based list
         self.coding_nucleotides_position=numpy.arange(1,self.number_coding_nucleotides+1,1)
 
+        # how many promoter nucleotides are there?
         self.number_promoter_nucleotides=len(self.promoter_nucleotides_string[0])
+
+        #
         self.promoter_nucleotides_position=numpy.arange(-1*(self.number_promoter_nucleotides),0,1)
 
         if self.reverse:
@@ -77,17 +81,15 @@ class Gene(object):
         self.model_score=[]
         self.model_percentile=[]
 
-        i=numpy.zeros(self.number_coding_nucleotides)
-        self.coding_coverage_ref=i
-        self.coding_coverage_alt=(i,i)
-        self.coding_score=i
-        self.coding_percentile=i
+        self.coding_coverage_ref=numpy.zeros(self.number_coding_nucleotides)
+        self.coding_coverage_alt=(numpy.zeros(self.number_coding_nucleotides),numpy.zeros(self.number_coding_nucleotides))
+        self.coding_score=numpy.zeros(self.number_coding_nucleotides,dtype=float)
+        self.coding_percentile=numpy.zeros(self.number_coding_nucleotides,dtype=float)
 
-        j=numpy.zeros(len(self.promoter_nucleotides_string))
-        self.promoter_coverage_ref=j
-        self.promoter_coverage_alt=(j,j)
-        self.promoter_score=j
-        self.promoter_percentile=j
+        self.promoter_coverage_ref=numpy.zeros(len(self.promoter_nucleotides_string))
+        self.promoter_coverage_alt=(numpy.zeros(len(self.promoter_nucleotides_string)),numpy.zeros(len(self.promoter_nucleotides_string)))
+        self.promoter_score=numpy.zeros(self.number_coding_nucleotides,dtype=float)
+        self.promoter_percentile=numpy.zeros(self.number_coding_nucleotides,dtype=float)
 
         # lastly, recompute the sequence
         self.update()
@@ -175,15 +177,20 @@ class Gene(object):
             assert numpy.sum(location)==1, "WARNING: trying to mutate "+self.gene_name+" at position "+str(position)+" from "+original_base+" to "+new_base+" and the mask has "+str(numpy.sum(location))+" locations"
 
             # check that the passed reference base matches what we think it should be
-            if self.coding_nucleotides[location][0]!=original_base.lower():
-                logging.warning(self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.coding_nucleotides[location][0]+" in the GenBank file! (Genbank version mismatch?)" )
+            if self.coding_nucleotides[0][location][0]!=original_base.lower():
+                logging.warning(self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.coding_nucleotides[0][location][0]+" in the GenBank file! (Genbank version mismatch?)" )
 
             # mutate to the new base
-            self.coding_nucleotides[location]=new_base.lower()
+            for j in [0,1]:
+
+                if original_base!=new_base[j]:
+
+                    self.coding_nucleotides[j][location]=new_base[j]
 
             self.coding_score[location]=float(model_score)
-            self.coding_coverage_alt[location]=int(coverage[1])
             self.coding_coverage_ref[location]=int(coverage[0])
+            for i in [0,1]:
+                self.coding_coverage_alt[i][location]=int(coverage[1][i])
 
             # recreate the string
             # self.coding_nucleotides_string="".join(map(str,self.coding_nucleotides))
@@ -256,16 +263,12 @@ class Gene(object):
 
         promoter_mutation_mask=self.promoter_sequence!=reference.promoter_sequence
 
-        self.mutation_ref=reference.promoter_sequence[promoter_mutation_mask]
-        self.mutation_alt=self.promoter_sequence[promoter_mutation_mask]
-        self.mutation_pos=self.promoter_nucleotides_position[promoter_mutation_mask]
+        if numpy.sum(promoter_mutation_mask)>0:
 
-        # need to revse
-        if self.reverse:
-            self.coverage_ref=self.promoter_coverage_ref[promoter_mutation_mask[::-1]]
-            self.coverage_alt=self.promoter_coverage_alt[promoter_mutation_mask[::-1]]
-            self.model_score=self.promoter_score[promoter_mutation_mask[::-1]]
-        else:
+            self.mutation_ref=numpy.append(self.mutation_ref,reference.promoter_sequence[promoter_mutation_mask])
+            self.mutation_alt=numpy.append(self.mutation_alt,self.promoter_sequence[promoter_mutation_mask])
+            self.mutation_pos=numpy.append(self.mutation_pos,self.promoter_nucleotides_position[promoter_mutation_mask])
+
             self.coverage_ref=self.promoter_coverage_ref[promoter_mutation_mask]
             self.coverage_alt=self.promoter_coverage_alt[promoter_mutation_mask]
             self.model_score=self.promoter_score[promoter_mutation_mask]
@@ -275,21 +278,13 @@ class Gene(object):
             # make Boolean array identifying where there are differences between the nucleotide triplets/amino acids
             coding_mutation_mask=self.triplets!=reference.triplets
 
-            self.mutation_ref=numpy.append(self.mutation_ref,reference.triplets[coding_mutation_mask])
-            self.mutation_alt=numpy.append(self.mutation_alt,self.triplets[coding_mutation_mask])
-            self.mutation_pos=numpy.append(self.mutation_pos,self.amino_acid_position[coding_mutation_mask])
+            if numpy.sum(coding_mutation_mask)>0:
+
+                self.mutation_ref=numpy.append(self.mutation_ref,reference.triplets[coding_mutation_mask])
+                self.mutation_alt=numpy.append(self.mutation_alt,self.triplets[coding_mutation_mask])
+                self.mutation_pos=numpy.append(self.mutation_pos,self.amino_acid_position[coding_mutation_mask])
 
             coding_mutation_mask=self.coding_sequence!=reference.coding_sequence
-
-            if self.reverse:
-                self.coverage_ref=numpy.append(self.coverage_ref,self.coding_coverage_ref[coding_mutation_mask[::-1]])
-                self.coverage_alt=numpy.append(self.coverage_alt,self.coding_coverage_alt[coding_mutation_mask[::-1]])
-                self.model_score=numpy.append(self.model_score,self.coding_score[coding_mutation_mask[::-1]])
-            else:
-                self.coverage_ref=numpy.append(self.coverage_ref,self.coding_coverage_ref[coding_mutation_mask])
-                self.coverage_alt=numpy.append(self.coverage_alt,self.coding_coverage_alt[coding_mutation_mask])
-                self.model_score=numpy.append(self.model_score,self.coding_score[coding_mutation_mask])
-
 
         elif self.element_type=="RNA":
 

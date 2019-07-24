@@ -67,8 +67,6 @@ class GeneCollection(object):
         elif genotype.is_heterozygous():
             variant = record.alleles[genotype.call1].lower(),record.alleles[genotype.call2].lower()
         elif genotype.is_alt():
-            alt_call = max(genotype.call())
-            # variant = record.alleles[alt_call].lower()
             variant = record.alleles[genotype.call1].lower(),record.alleles[genotype.call2].lower()
         elif genotype.is_null():
             variant = "x"*len(ref_bases),"x"*len(ref_bases)
@@ -256,7 +254,7 @@ class GeneCollection(object):
 
         # force all the gene strings etc to be rebuilt now that the mutations have been applied
         self._update_genes()
-
+        print(n['hom'],n['het'],n['ref'],n['null'])
         return(n['hom'],n['het'],n['ref'],n['null'])
 
     def _update_genes(self):
