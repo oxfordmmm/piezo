@@ -97,7 +97,7 @@ class GeneCollection(object):
         vcf_reader = pysam.VariantFile(self.vcf_file.rstrip())
 
         # now iterate through the records found in the VCF file
-        for record in tqdm(vcf_reader):
+        for record in tqdm(vcf_reader,disable=True):
 
             # check to see if the position is in one of the genes we are tracking or the filter is not PASS
             if self._is_record_invalid(ignore_filter,record):
@@ -154,12 +154,14 @@ class GeneCollection(object):
 
                 if genotype.is_null():
                     n['null']+=1
-                    alt_bases='x' *len(ref_bases)
+                    print("NULL CALL:", ref_bases, alt_bases, coverage_before, coverage_after,gt_conf,gt_conf_percentile)
                 elif genotype.is_alt():
                     n['hom']+=1
+                    # print("HOM CALL:", ref_bases, alt_bases, coverage_before, coverage_after,gt_conf,gt_conf_percentile)
                 elif genotype.is_heterozygous():
                     n['het']+=1
-                    # print("HET CALL****************")
+                    if ref_bases!=alt_bases[0]:
+                        print("HET CALL:", ref_bases, alt_bases, coverage_before, coverage_after,gt_conf,gt_conf_percentile)
                     # FIXME:
 
                 # print("COVERAGE",coverage_before,coverage_after)
