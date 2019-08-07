@@ -1,4 +1,3 @@
-#! /usr/bin/env python
 
 from datetime import datetime
 import logging
@@ -11,12 +10,12 @@ class Gene(object):
 
     """Gene object that uses underlying numpy arrays"""
 
-    def __init__(self,gene_name=None,coding_nucleotides=None,promoter_nucleotides=None,first_amino_acid_position=1,first_nucleotide_index=None,reverse=False,element_type=None):
+    def __init__(self,gene_name=None,nucleotides=None,first_amino_acid_position=1,first_nucleotide_index=None,reverse=False,element_type=None):
 
         # store various arguments as class variables
         self.gene_name=gene_name
         self.element_type=element_type
-        self.first_nucleotide_index=first_nucleotide_index
+        self.nucleotide_first_index=nucleotide_first_index
         self.reverse=reverse
 
         # convert the provided strings into lower case and store as a diploid tuple
