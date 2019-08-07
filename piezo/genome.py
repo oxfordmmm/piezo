@@ -1,6 +1,6 @@
 import gzip, os, pickle
 
-import numpy
+import numpy, h5py
 
 import pysam
 from Bio import SeqIO
@@ -186,6 +186,19 @@ class Genome(object):
 
                         # increment the position in the genome
                         position+=1
+
+    def save_sequence(self,filename=None):
+
+        '''
+        Save the genome as a compressed NPZ file (compressed internally using gzip).
+
+        This is purely done because loading an NPZ file back into memory is FAST (~200µs) so this could allow future analyses
+
+        Args:
+            filename (str): path of the output file without the file extension
+        '''
+
+        numpy.savez_compressed(filename,sequence=self.sequence)
 
     def save_fasta(self,filename=None,compression=False,compresslevel=2,additional_metadata=None,chars_per_line=70,nucleotides_uppercase=True):
 
