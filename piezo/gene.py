@@ -81,13 +81,13 @@ class Gene(object):
         self.model_score=[]
         self.model_percentile=[]
 
-        self.coding_coverage_ref=numpy.zeros(self.number_coding_nucleotides)
-        self.coding_coverage_alt=(numpy.zeros(self.number_coding_nucleotides),numpy.zeros(self.number_coding_nucleotides))
+        # self.coding_coverage_ref=numpy.zeros(self.number_coding_nucleotides)
+        self.coding_coverage=(numpy.zeros(self.number_coding_nucleotides),numpy.zeros(self.number_coding_nucleotides))
         self.coding_score=numpy.zeros(self.number_coding_nucleotides,dtype=float)
         self.coding_percentile=numpy.zeros(self.number_coding_nucleotides,dtype=float)
 
-        self.promoter_coverage_ref=numpy.zeros(self.number_promoter_nucleotides)
-        self.promoter_coverage_alt=(numpy.zeros(self.number_promoter_nucleotides),numpy.zeros(self.number_promoter_nucleotides))
+        # self.promoter_coverage_ref=numpy.zeros(self.number_promoter_nucleotides)
+        self.promoter_coverage=(numpy.zeros(self.number_promoter_nucleotides),numpy.zeros(self.number_promoter_nucleotides))
         self.promoter_score=numpy.zeros(self.number_promoter_nucleotides,dtype=float)
         self.promoter_percentile=numpy.zeros(self.number_promoter_nucleotides,dtype=float)
 
@@ -269,7 +269,6 @@ class Gene(object):
             # check that the passed reference base matches what we think it should be
             # if self.coding_nucleotides[0][location][0]!=original_base.lower():
             #     logging.warning(self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.coding_nucleotides[0][location][0]+" in the GenBank file! (Genbank version mismatch?)" )
-            print(position,self.coding_nucleotides[strand][location][0],original_base.lower())
             assert self.coding_nucleotides[strand][location][0]==original_base.lower(), self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.coding_nucleotides[strand][location][0]+" in the GenBank file! (Genbank version mismatch?)"
 
             # mutate to the new base
@@ -280,7 +279,7 @@ class Gene(object):
             self.coding_score[location]=float(model_score)
             self.coding_percentile[location]=float(model_percentile)
             # self.coding_coverage_ref[location]=int(coverage)
-            self.coding_coverage_alt[strand][location]=int(coverage)
+            self.coding_coverage[strand][location]=int(coverage)
 
             # recreate the string
             # self.coding_nucleotides_string="".join(map(str,self.coding_nucleotides))
@@ -345,6 +344,18 @@ class Gene(object):
             return(None,None)
 
 
+    def __sub__(self,reference):
+
+        # let's check we've been given a reference gene with the same name and same number of nucleotides
+        assert self.gene_name==reference.gene_name
+        assert self.number_coding_nucleotides==reference.number_coding_nucleotides
+        assert self.number_promoter_nucleotides==reference.number_promoter_nucleotides
+
+        for strand in [0,1]:
+
+
+            return("ok")
+
     def identify_mutations(self,reference):
 
         # let's check we've been given a reference gene with the same name and same number of nucleotides
@@ -362,8 +373,8 @@ class Gene(object):
             self.mutation_alt=numpy.append(self.mutation_alt,self.promoter_sequence[promoter_mutation_mask])
             self.mutation_pos=numpy.append(self.mutation_pos,self.promoter_nucleotides_position[promoter_mutation_mask])
 
-            self.coverage_ref=self.promoter_coverage_ref[promoter_mutation_mask]
-            self.coverage_alt=self.promoter_coverage_alt[promoter_mutation_mask]
+            # self.coverage_ref=self.promoter_coverage_ref[promoter_mutation_mask]
+            self.coverage=self.promoter_coverage[promoter_mutation_mask]
             self.model_score=self.promoter_score[promoter_mutation_mask]
 
         if self.element_type in ['GENE','LOCUS']:
@@ -387,8 +398,8 @@ class Gene(object):
             self.mutation_alt=numpy.append(self.mutation_alt,self.coding_nucleotides[coding_mutation_mask])
             self.mutation_pos=numpy.append(self.mutation_pos,self.coding_nucleotides_position[coding_mutation_mask])
 
-            self.coverage_ref=numpy.append(self.coverage_ref,self.coding_coverage_ref[coding_mutation_mask])
-            self.coverage_alt=numpy.append(self.coverage_alt,self.coding_coverage_alt[coding_mutation_mask])
+            # self.coverage_ref=numpy.append(self.coverage_ref,self.coding_coverage_ref[coding_mutation_mask])
+            self.coverage=numpy.append(self.coverage,self.coding_coverage[coding_mutation_mask])
             self.model_score=numpy.append(self.model_score,self.coding_score[coding_mutation_mask])
 
         for i in self.indels:

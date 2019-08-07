@@ -67,9 +67,9 @@ class GeneCollection(object):
         elif genotype.is_heterozygous():
             variant = record.alleles[genotype.call1].lower(),record.alleles[genotype.call2].lower()
         elif genotype.is_alt():
-            variant = record.alleles[genotype.call1].lower(),record.alleles[genotype.call2].lower()
+            variant = record.alleles[genotype.call1].lower()
         elif genotype.is_null():
-            variant = "x"*len(ref_bases),"x"*len(ref_bases)
+            variant = "x"*len(ref_bases)
         else:
             raise UnexpectedGenotypeError(
                 """Got a genotype for which a Ref/Alt/Null call could not be
@@ -82,7 +82,7 @@ class GeneCollection(object):
         return ref_bases,record.pos,variant
 
 
-    def apply_vcf_file(self,vcf_file,ignore_filter=False, ignore_status=False):
+    def apply_vcf_file(self,vcf_file,ignore_filter=False, ignore_status=False,show_progress_bar=False):
 
         # remember the full path to the VCF file
         self.vcf_file=vcf_file
@@ -96,7 +96,7 @@ class GeneCollection(object):
         vcf_reader = pysam.VariantFile(self.vcf_file.rstrip())
 
         # now iterate through the records found in the VCF file
-        for record in tqdm(vcf_reader,disable=True):
+        for record in tqdm(vcf_reader,disable=not(show_progress_bar)):
 
             # check to see if the position is in one of the genes we are tracking or the filter is not PASS
             if self._is_record_invalid(ignore_filter,record):
@@ -122,8 +122,6 @@ class GeneCollection(object):
                 # find out the variant
                 # if it is a het, a tuple is returned for alt_bases
                 ref_bases,position,alt_bases = self.get_variant_for_genotype_in_vcf_record(genotype, record)
-
-                # print(ref_bases,position,alt_bases,genotype.is_alt())
 
                 # find out what gene we are in
                 gene_name=self.gene_panel_index[position]
@@ -164,29 +162,36 @@ class GeneCollection(object):
                         print("HET CALL:", ref_bases, alt_bases, coverage_before, coverage_after,gt_conf,gt_conf_percentile)
                     # FIXME:
 
+                print(gene_name,ref_bases,position,alt_bases,genotype.is_alt())
+
+                self.gene[gene_name].apply_variant(position=position,ref_bases=ref_bases,alt_bases=alt_bases,coverage=12,model_score=90.3,model_percentile=14.9)
+                # self.gene[gene_name].update()
+                # after=self.gene[gene_name].coding_nucleotides
+                # print(numpy.sum(before[0]!=after[0]))
+                # print(numpy.sum(before[1]!=after[1]))
                 # print("COVERAGE",coverage_before,coverage_after)
 
                 # automatically not true if a het call since alt_bases will be a tuple
                 # true for a SNP
-                if len(ref_bases)==len(alt_bases):
-
-                    # most of the time these will be SNPs so the loop will iterate just once
-                    for before,after in zip(ref_bases,alt_bases):
-
-                        # the mutate base is setup to handle one base at a time, so call it each time around the loop
-                        # note that this will be called even if before==after, but that is needed to deal with k-mers where not all bases have been mutated
-                        # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
-
-                        # if before!=after:
-
-                            # print(gene_name,position,before,after,coverage_before,coverage_after,gt_conf,ref_bases,alt_bases)
-                            # try:
-                            # self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=gt_conf)
-                            # except:
-                            #     print(gene_name,before,after)
-
-                        # increment the position in the genome
-                        position+=1
+                # if len(ref_bases)==len(alt_bases):
+                #
+                #     # most of the time these will be SNPs so the loop will iterate just once
+                #     for before,after in zip(ref_bases,alt_bases):
+                #
+                #         # the mutate base is setup to handle one base at a time, so call it each time around the loop
+                #         # note that this will be called even if before==after, but that is needed to deal with k-mers where not all bases have been mutated
+                #         # the mutate_base() method does assert that the original_base matches what is in the appropriate GenBank file
+                #
+                #         # if before!=after:
+                #
+                #             # print(gene_name,position,before,after,coverage_before,coverage_after,gt_conf,ref_bases,alt_bases)
+                #             # try:
+                #             # self.gene[gene_name].mutate_base(position=position,original_base=before,new_base=after,coverage=[coverage_before,coverage_after],model_score=gt_conf)
+                #             # except:
+                #             #     print(gene_name,before,after)
+                #
+                #         # increment the position in the genome
+                #         position+=1
 
                 #
                 # if not genotype.is_heterozygous():
@@ -256,7 +261,7 @@ class GeneCollection(object):
 
         # force all the gene strings etc to be rebuilt now that the mutations have been applied
         self._update_genes()
-        print(n['hom'],n['het'],n['ref'],n['null'])
+        # print(n['hom'],n['het'],n['ref'],n['null'])
         return(n['hom'],n['het'],n['ref'],n['null'])
 
     def _update_genes(self):
