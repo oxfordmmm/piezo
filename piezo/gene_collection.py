@@ -70,7 +70,6 @@ class GeneCollection(object):
             variant = record.alleles[genotype.call1].lower(),record.alleles[genotype.call2].lower()
         elif genotype.is_null():
             variant = "x"*len(ref_bases),"x"*len(ref_bases)
-            print("NULL",ref_bases,variant)
         else:
             raise UnexpectedGenotypeError(
                 """Got a genotype for which a Ref/Alt/Null call could not be
@@ -102,7 +101,6 @@ class GeneCollection(object):
             # check to see if the position is in one of the genes we are tracking or the filter is not PASS
             if self._is_record_invalid(ignore_filter,record):
                 continue
-
             for sample_idx, (sample_name, sample_info) in enumerate(
                 record.samples.items()
             ):
@@ -124,6 +122,8 @@ class GeneCollection(object):
                 # find out the variant
                 # if it is a het, a tuple is returned for alt_bases
                 ref_bases,position,alt_bases = self.get_variant_for_genotype_in_vcf_record(genotype, record)
+
+                # print(ref_bases,position,alt_bases,genotype.is_alt())
 
                 # find out what gene we are in
                 gene_name=self.gene_panel_index[position]
@@ -160,7 +160,7 @@ class GeneCollection(object):
                     # print("HOM CALL:", ref_bases, alt_bases, coverage_before, coverage_after,gt_conf,gt_conf_percentile)
                 elif genotype.is_heterozygous():
                     n['het']+=1
-                    if ref_bases!=alt_bases[0]:
+                    if (ref_bases!=alt_bases[0]) and (ref_bases!=alt_bases[1]):
                         print("HET CALL:", ref_bases, alt_bases, coverage_before, coverage_after,gt_conf,gt_conf_percentile)
                     # FIXME:
 

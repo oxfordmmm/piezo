@@ -28,7 +28,7 @@ class Gene(object):
         self.promoter_nucleotides=(numpy.array([i for i in self.promoter_nucleotides_string[0]]),numpy.array([i for i in self.promoter_nucleotides_string[0]]))
 
         # create an empty dict to store indels in later
-        self.indels={}
+        self.indels=({},{})
 
         datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
         logging.basicConfig(filename="logs/piezo-gene-"+gene_name+"-"+datestamp+".csv",level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
@@ -40,7 +40,7 @@ class Gene(object):
         self.last_nucleotide_index=self.first_nucleotide_index+self.number_coding_nucleotides
 
         # thereby create an array of genome positions (i.e indices) to allow numpy boolean operations later
-        self.coding_nucleotide_index=numpy.array([i for i in range(self.first_nucleotide_index,self.last_nucleotide_index,1)])
+        self.coding_nucleotides_index=numpy.array([i for i in range(self.first_nucleotide_index,self.last_nucleotide_index,1)])
 
         # same, but with a 1-based list
         self.coding_nucleotides_position=numpy.arange(1,self.number_coding_nucleotides+1,1)
@@ -52,9 +52,9 @@ class Gene(object):
         self.promoter_nucleotides_position=numpy.arange(-1*(self.number_promoter_nucleotides),0,1)
 
         if self.reverse:
-            self.promoter_nucleotide_index=numpy.array([i for i in range (self.last_nucleotide_index,self.last_nucleotide_index+self.number_promoter_nucleotides,1)])
+            self.promoter_nucleotides_index=numpy.array([i for i in range (self.last_nucleotide_index,self.last_nucleotide_index+self.number_promoter_nucleotides,1)])
         else:
-            self.promoter_nucleotide_index=numpy.array([i for i in range (self.first_nucleotide_index-self.number_promoter_nucleotides,self.first_nucleotide_index,1)])
+            self.promoter_nucleotides_index=numpy.array([i for i in range (self.first_nucleotide_index-self.number_promoter_nucleotides,self.first_nucleotide_index,1)])
 
         if self.element_type in ['GENE','LOCUS']:
 
@@ -86,10 +86,10 @@ class Gene(object):
         self.coding_score=numpy.zeros(self.number_coding_nucleotides,dtype=float)
         self.coding_percentile=numpy.zeros(self.number_coding_nucleotides,dtype=float)
 
-        self.promoter_coverage_ref=numpy.zeros(len(self.promoter_nucleotides_string))
-        self.promoter_coverage_alt=(numpy.zeros(len(self.promoter_nucleotides_string)),numpy.zeros(len(self.promoter_nucleotides_string)))
-        self.promoter_score=numpy.zeros(self.number_coding_nucleotides,dtype=float)
-        self.promoter_percentile=numpy.zeros(self.number_coding_nucleotides,dtype=float)
+        self.promoter_coverage_ref=numpy.zeros(self.number_promoter_nucleotides)
+        self.promoter_coverage_alt=(numpy.zeros(self.number_promoter_nucleotides),numpy.zeros(self.number_promoter_nucleotides))
+        self.promoter_score=numpy.zeros(self.number_promoter_nucleotides,dtype=float)
+        self.promoter_percentile=numpy.zeros(self.number_promoter_nucleotides,dtype=float)
 
         # lastly, recompute the sequence
         self.update()
@@ -140,7 +140,7 @@ class Gene(object):
         output+=self.element_type.upper()+"\n"
         output+="%i nucleotides\n" % self.number_coding_nucleotides
         output+=self.coding_nucleotides_string[0][0:13]+"..."+self.coding_nucleotides_string[0][-16:]+"\n"
-        output+="%i to %i\n" % (self.coding_nucleotide_index[0],self.coding_nucleotide_index[-1])
+        output+="%i to %i\n" % (self.coding_nucleotides_index[0],self.coding_nucleotides_index[-1])
         if self.element_type in ['GENE','LOCUS']:
             output+="%i nucleotides promoter\n" % (self.number_promoter_nucleotides)
             output+="%i amino acids\n" % self.number_amino_acids
@@ -148,73 +148,166 @@ class Gene(object):
             output+="%i to %i\n" % (self.amino_acid_position[0],self.amino_acid_position[-1])
         return(output)
 
-    def store_indel(self, mutation, ref=None, alt=None, coverage=None, model_score=None, genome_position=None):
+    def apply_variant(self, position=None, ref_bases=None, alt_bases=None, model_score=None, model_percentile=None, coverage=None):
+
+        # deal with everything except HET calls
+        if not isinstance(alt_bases,tuple):
+
+            if len(ref_bases)==len(alt_bases):
+
+                for before,after in zip(ref_bases,alt_bases):
+
+                    if before!=after:
+
+                        # try:
+                        for strand in [0,1]:
+                            self.mutate_base(strand=strand,position=position,original_base=before,new_base=after,coverage=coverage,model_score=model_score,model_percentile=model_percentile)
+                        # except:
+                        #     print(before,after)
+
+                    # increment the position in the genome
+                    position+=1
+
+            # this is an INDEL
+            else:
+
+                # find out where the mutation is
+                (type,location)=self.return_location(position)
+
+                # be defensive; the above only returns None if the position isn't in the gene
+                if type is not None:
+
+                    if type=="CDS":
+                        cds=True
+                        promoter=False
+                    elif type=="PROMOTER":
+                        cds=False
+                        promoter=True
+                    else:
+                        raise ValueError("Only CDS or PROMOTER can be returned: was given "+type)
+
+                    mutation_name=str(location)+"_indel"
+
+                    for strand in [0,1]:
+                        self.store_indel(mutation=mutation_name,position=position,strand=strand,ref=ref_bases,alt=alt_bases,coverage=coverage,model_score=model_score,model_percentile=model_percentile)
+
+        # now handle HET calls
+        else:
+
+            for strand,alt in enumerate(alt_bases):
+
+                if len(ref_bases)==len(alt):
+
+                    pos=position
+
+                    for before,after in zip(ref_bases,alt):
+
+                        # if before!=after:
+
+                            # try:
+                        self.mutate_base(strand=strand,position=pos,original_base=before,new_base=after,coverage=coverage[strand],model_score=model_score,model_percentile=model_percentile)
+
+                        pos+=1
+
+                else:
+
+                    # find out where the mutation is
+                    (type,location)=self.return_location(position)
+
+                    # be defensive; the above only returns None if the position isn't in the gene
+                    if type is not None:
+
+                        if type=="CDS":
+                            cds=True
+                            promoter=False
+                        elif type=="PROMOTER":
+                            cds=False
+                            promoter=True
+                        else:
+                            raise ValueError("Only CDS or PROMOTER can be returned: was given "+type)
+
+                        mutation_name=str(location)+"_indel"
+
+                        self.store_indel(mutation=mutation_name,position=position,strand=strand,ref=ref_bases,alt=alt,coverage=coverage[strand],model_score=model_score,model_percentile=model_percentile)
+
+
+
+    def store_indel(self, mutation=None, position=None,  strand=None, ref=None, alt=None, coverage=None, model_score=None, model_percentile=None):
+
+        assert strand in [0,1], "strand must be 0 or 1"
+
+        assert ref!=alt, "not a mutation!"
 
         cols=mutation.split("_")
 
-        assert len(cols)==2, "indel passed not in form 1300_ins_3"
+        assert len(cols)==2, "indel passed not in form 1300_indel"
 
-        self.indels[mutation]={ 'REF':ref.lower(), 'ALT':alt.lower(), 'REF_COVERAGE':coverage[0], 'ALT_COVERAGE':coverage[1], 'MODEL_SCORE':model_score, 'GENOME_POSITION':genome_position}
+        # self.indels[strand][mutation]={ 'REF':ref.lower(), 'ALT':alt.lower(), 'REF_COVERAGE':coverage[0], 'ALT_COVERAGE':coverage[1], 'MODEL_SCORE':model_score, 'GENOME_POSITION':genome_position}
+        self.indels[strand][mutation]={ 'REF':ref.lower(), 'ALT':alt.lower(), 'COVERAGE':coverage, 'MODEL_SCORE':model_score, 'GENOME_POSITION':position}
 
-    def mutate_base(self, position=None, original_base=None, new_base=None, coverage=None, model_score=None):
+    def mutate_base(self, position=None, strand=None, original_base=None, new_base=None, coverage=None, model_score=None, model_percentile=None):
 
         assert original_base.lower() in ['a','c','t','g'], "not been given a nucleotide!"
 
         assert position>-101, "position not an integer >= -100 (for promoter)"
 
-        assert new_base[0].lower() in ['a','c','t','g','x','z'], "not been given a nucleotide!"
-        assert new_base[1].lower() in ['a','c','t','g','x','z'], "not been given a nucleotide!"
+        assert new_base.lower() in ['a','c','t','g','x','z'], "not been given a nucleotide!"
 
         # assert original_base!=new_base, "not a mutation!"
 
+        assert strand in [0,1], "strand must be 0 or 1"
+
         # is the position in the coding sequence or the promoter?
-        if (position in self.coding_nucleotide_index):
+        if (position in self.coding_nucleotides_index):
 
             # make a Boolean mask identifying the position to mutate
-            location=self.coding_nucleotide_index==position
+            location=self.coding_nucleotides_index==position
 
             # more paranoia
             assert numpy.sum(location)==1, "WARNING: trying to mutate "+self.gene_name+" at position "+str(position)+" from "+original_base+" to "+new_base+" and the mask has "+str(numpy.sum(location))+" locations"
 
             # check that the passed reference base matches what we think it should be
-            if self.coding_nucleotides[0][location][0]!=original_base.lower():
-                logging.warning(self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.coding_nucleotides[0][location][0]+" in the GenBank file! (Genbank version mismatch?)" )
+            # if self.coding_nucleotides[0][location][0]!=original_base.lower():
+            #     logging.warning(self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.coding_nucleotides[0][location][0]+" in the GenBank file! (Genbank version mismatch?)" )
+            print(position,self.coding_nucleotides[strand][location][0],original_base.lower())
+            assert self.coding_nucleotides[strand][location][0]==original_base.lower(), self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.coding_nucleotides[strand][location][0]+" in the GenBank file! (Genbank version mismatch?)"
 
             # mutate to the new base
-            for j in [0,1]:
+            if original_base!=new_base:
 
-                if original_base!=new_base[j]:
-
-                    self.coding_nucleotides[j][location]=new_base[j]
+                self.coding_nucleotides[strand][location]=new_base
 
             self.coding_score[location]=float(model_score)
-            self.coding_coverage_ref[location]=int(coverage[0])
-            for i in [0,1]:
-                self.coding_coverage_alt[i][location]=int(coverage[1][i])
+            self.coding_percentile[location]=float(model_percentile)
+            # self.coding_coverage_ref[location]=int(coverage)
+            self.coding_coverage_alt[strand][location]=int(coverage)
 
             # recreate the string
             # self.coding_nucleotides_string="".join(map(str,self.coding_nucleotides))
             # for i in self.coding_nucleotides:
             #     self.coding_nucleotides_string+=i
 
-        elif position in self.promoter_nucleotide_index:
+        elif position in self.promoter_nucleotides_index:
 
             # make a Boolean mask identifying the position to mutate
-            location=self.promoter_nucleotide_index==position
+            location=self.promoter_nucleotides_index==position
 
             # more paranoia
             assert numpy.sum(location)==1, "WARNING: trying to mutate "+self.gene_name+" at position "+str(position)+" from "+original_base+" to "+new_base+" and the mask has "+str(numpy.sum(location))+" locations"
 
             # check that the passed reference base matches what we think it should be
-            if self.promoter_nucleotides[0][location]!=original_base.lower():
-                logging.warning(self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.promoter_nucleotides[location][0]+" in the GenBank file! (Genbank version mismatch?)" )
+            # if self.promoter_nucleotides[0][location]!=original_base.lower():
+            #     logging.warning(self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.promoter_nucleotides[location][0]+" in the GenBank file! (Genbank version mismatch?)" )
+            assert self.promoter_nucleotides[strand][location][0]==original_base.lower(), self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.promoter_nucleotides[strand][location][0]+" in the GenBank file! (Genbank version mismatch?)"
 
             # mutate to the new base
-            self.promoter_nucleotides[location]=new_base.lower()
+            if original_base!=new_base:
+                self.promoter_nucleotides[strand][location]=new_base.lower()
 
             self.promoter_score[location]=float(model_score)
-            self.promoter_coverage_alt[location]=int(coverage[1])
-            self.promoter_coverage_ref[location]=int(coverage[0])
+            self.promoter_percentile[location]=float(model_percentile)
+            # self.promoter_coverage_alt[location]=int(coverage[1])
+            self.promoter_coverage_alt[strand][location]=int(coverage)
 
             # recreate the string
             # self.promoter_nucleotides_string=""
@@ -243,10 +336,10 @@ class Gene(object):
 
     def return_location(self,position):
 
-        if position in self.coding_nucleotide_index:
-            return("CDS",((position-self.coding_nucleotide_index[0])+1))
-        elif position in self.promoter_nucleotide_index:
-            return("PROMOTER",position-self.coding_nucleotide_index[0])
+        if position in self.coding_nucleotides_index:
+            return("CDS",((position-self.coding_nucleotides_index[0])+1))
+        elif position in self.promoter_nucleotides_index:
+            return("PROMOTER",position-self.coding_nucleotides_index[0])
         else:
             logging.warning(self.gene_name+","+str(position)+",supplied position not in gene ")
             return(None,None)
