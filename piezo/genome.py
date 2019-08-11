@@ -369,11 +369,11 @@ class Genome(object):
 
     def _set_sequence_metadata(self,idx,sample_info):
 
-        mask=self.index==idx
-
-        for field in self.metadata_fields:
-            if field in sample_info.keys():
-                self.sequence_metadata[field][mask]=sample_info[field]
+        if self.metadata_fields is not None:
+            mask=self.index==idx
+            for field in self.metadata_fields:
+                if field in sample_info.keys():
+                    self.sequence_metadata[field][mask]=sample_info[field]
 
     def _permute_sequence(self,idx,coverage,after=None,indel_length=0):
 

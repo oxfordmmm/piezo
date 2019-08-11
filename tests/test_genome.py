@@ -20,7 +20,7 @@ def test_Genome_instantiate_genbank():
     assert reference.sequence[0]=='t'
     assert reference.sequence[-1]=='g'
 
-    assert len(reference.gene_names)==3909
+    assert len(reference.gene_names)==3908
 
     # try a normal gene
     assert reference.gene_is_reverse['rpoB'] is False
@@ -64,7 +64,7 @@ def test_Genome_gbk_fasta_identical():
 
     assert numpy.array_equal(reference.sequence,reference2.sequence)
 
-    assert numpy.array_equal(reference.diploid,reference2.diploid)
+    assert numpy.array_equal(reference.index,reference2.index)
 
 
 def test_Genome___repr__():
@@ -109,7 +109,7 @@ def test_Genome_apply_vcf():
     assert new_bases[0]=='t'
 
     sample_04=copy.deepcopy(reference)
-    sample_04.apply_vcf_file(vcf_file=TEST_CASE_DIR+"04.vcf",ignore_status=True,ignore_filter=True)
+    sample_04.apply_vcf_file(vcf_file=TEST_CASE_DIR+"04.vcf",ignore_status=True,ignore_filter=True,metadata_fields=['GT_CONF'])
     (original_bases,indices,new_bases)=reference-sample_04
     assert original_bases[0]=='c'
     assert indices[0]==2155168
