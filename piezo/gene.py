@@ -167,7 +167,7 @@ class Gene(object):
                     # increment the position in the genome
                     position+=1
 
-            # this is an INDEL
+            # this is a INDEL call
             else:
 
                 # find out where the mutation is

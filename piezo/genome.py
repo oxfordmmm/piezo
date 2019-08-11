@@ -1,4 +1,5 @@
 import gzip, os, pickle
+from collections import defaultdict
 
 import numpy, h5py
 
@@ -10,7 +11,7 @@ from piezo import Genotype
 
 class Genome(object):
 
-    def __init__(self,genbank_file=None,fasta_file=None):
+    def __init__(self,genbank_file=None,fasta_file=None,show_progress_bar=False):
 
         '''
         Instantiates a genome object by loading a VCF file and storing the whole genome as a numpy array
@@ -25,7 +26,7 @@ class Genome(object):
         self.id=""
         self.organism=""
         self.sample_name=""
-        self.additional_metadata=None
+        self.sample_metadata={}
 
         # load the specified GenBank file
         if genbank_file is not None:
@@ -38,17 +39,84 @@ class Genome(object):
             # convert to a numpy array at the first opportunity since slicing BioPython is between 10 and 50,000 times slower!
             self.sequence=numpy.array([i.lower() for i in str(reference_genome.seq)])
 
+            # store the length of the genome
+            self.length=len(self.sequence)
+
+            # create an array of the genome indices
+            self.index=numpy.arange(1,self.length+1)
+
             # store some of the metadata, if it is present
             self.id=reference_genome.id
 
             if 'organism' in reference_genome.annotations.keys():
                 self.organism=reference_genome.annotations['organism']
             if 'sequence_version' in reference_genome.annotations.keys():
-                self.sequence_version=reference_genome.annotations['sequence_version']
+                self.sample_metadata['SEQUENCE_VERSION']=reference_genome.annotations['sequence_version']
             if 'source' in reference_genome.annotations.keys():
-                self.source=reference_genome.annotations['source']
+                self.sample_metadata['SOURCE']=reference_genome.annotations['source']
             if 'taxonomy' in reference_genome.annotations.keys():
-                self.taxonomy=reference_genome.annotations['taxonomy']
+                self.sample_metadata['TAXONOMY']=reference_genome.annotations['taxonomy']
+
+            self.gene=numpy.zeros(self.length,dtype="<U10")
+            self.gene_type=defaultdict(str)
+            self.gene_is_reverse=defaultdict(str)
+            self.is_gene=numpy.zeros(self.length,dtype=bool)
+
+            for record in tqdm(reference_genome.features,disable=not(show_progress_bar)):
+
+                if record.type in ['CDS','rRNA']:
+
+                    gene_name=None
+
+                    if 'gene' in record.qualifiers.keys():
+
+                        gene_name=record.qualifiers['gene'][0]
+
+                        if record.type=='rRNA':
+                            gene_type="RNA"
+                        else:
+                            gene_type="GENE"
+
+                    elif 'locus_tag' in record.qualifiers.keys():
+
+                        gene_name=record.qualifiers['locus_tag'][0]
+
+                        if record.type=='rRNA':
+                            gene_type="RNA"
+                        else:
+                            gene_type="LOCUS"
+
+                    else:
+                        continue
+
+                    if gene_name is not None:
+
+                        gene_start=int(record.location.start)
+                        gene_end=int(record.location.end)
+                        gene_reverse=bool(record.strand)
+
+                        # need to check a gene is already there, otherwise genes later in the GenBank file will
+                        # overwrite those already allocated.
+                        if gene_reverse:
+                            mask=(self.index>gene_start) & (self.index<=gene_end) & (~self.is_gene)
+                        else:
+                            mask=(self.index>=gene_start) & (self.index<gene_end) & (~self.is_gene)
+
+
+                        self.gene[mask]=gene_name
+                        self.is_gene[mask]=True
+                        self.gene_type[gene_name]=gene_type
+
+                        if record.strand==1:
+                            self.gene_is_reverse[gene_name]=False
+                        elif record.strand==-1:
+                            self.gene_is_reverse[gene_name]=True
+                        else:
+                            raise TypeError("gene in GenBank file has strand that is not 1 or -1")
+
+
+            self.gene_names=numpy.unique(self.gene[self.gene!=""])
+
 
         # otherwise there must be a FASTA file so load that instead
         elif fasta_file is not None:
@@ -60,24 +128,33 @@ class Genome(object):
                 self.id=cols[0]
                 self.organism=cols[1]
                 self.sample_name=cols[2]
-            if len(cols)>3:
-                self.additional_metadata=cols[3]
+            # if len(cols)>3:
+            #     self.additional_metadata=cols[3]
 
             self.sequence=numpy.array(list(nucleotide_sequence))
+
+            # store the length of the genome
+            self.length=len(self.sequence)
+
+            # create an array of the genome indices
+            self.index=numpy.arange(1,self.length+1)
 
         # insist that bases are lower case
         self.sequence=numpy.char.lower(self.sequence)
 
+        # store the sequence as integers 0,1,2,3 with which bases they refer to in bases_integer_lookup
         self.bases_integer_lookup, self.integers = numpy.unique(self.sequence, return_inverse=True)
 
-        # store the length of the genome
-        self.length=len(self.sequence)
+        # create a set of mutually exclusive Boolean arrays that tell you what the 'single sequence' result is
+        self.is_ref=numpy.zeros(self.length,dtype=bool)
+        self.is_null=numpy.zeros(self.length,dtype=bool)
+        self.is_het=numpy.zeros(self.length,dtype=bool)
+        self.is_snp=numpy.zeros(self.length,dtype=bool)
+        self.is_indel=numpy.zeros(self.length,dtype=bool)
 
         # create a diploid version of the sequence to handle HET calls later
-        self.diploid=(self.sequence,self.sequence)
+        # self.het_sequence=numpy.array((i,i) for i in self.sequence)
 
-        # create an array of the genome indices
-        self.index=numpy.arange(1,self.length+1)
 
     def __repr__(self):
 
@@ -114,7 +191,7 @@ class Genome(object):
     def calculate_snp_distance(self,other):
         return (numpy.count_nonzero(self.sequence!=other.sequence))
 
-    def apply_vcf_file(self,vcf_file=None,ignore_filter=False, ignore_status=False,show_progress_bar=False):
+    def apply_vcf_file(self,vcf_file=None,ignore_filter=False, ignore_status=False,show_progress_bar=False,metadata_fields=None):
         """
         Load a VCF file and apply the variants to the whole genome sequence.
 
@@ -127,8 +204,20 @@ class Genome(object):
 
         # since we are now applying a VCF file, it makes sense to create these numpy arrays
         self.coverage=numpy.zeros(self.length)
-        self.model_score=numpy.zeros(self.length)
-        self.model_percentile=numpy.zeros(self.length)
+        self.indel_length=numpy.zeros(self.length,int)
+
+        # set up a dictionary for the metadata since the field names will vary between calling calling codes
+        # for Clockwork these will be GT_CONF and GT_CONF_PERCENTILE
+        self.metadata_fields=metadata_fields
+        if self.metadata_fields is not None:
+            self.sequence_metadata={}
+            for field in self.metadata_fields:
+                self.sequence_metadata[field]=numpy.zeros(self.length,float)
+
+        # to deal with HET calls we need to setup some diploid arrays
+        self.het_variations=numpy.zeros((self.length,2),str)
+        self.het_coverage=numpy.zeros((self.length,2),int)
+        self.het_indel_length=numpy.zeros((self.length,2),int)
 
         # split and remember the path, filename and stem of the VCF file
         (self.vcf_folder,self.vcf_file_name)=os.path.split(vcf_file)
@@ -145,17 +234,20 @@ class Genome(object):
         # now iterate through the records found in the VCF file
         for record in tqdm(vcf_reader,disable=not(show_progress_bar)):
 
-            # check to see the filter is not PASS
+            # check to see the filter is ok (or we are ignoring it)
             if self._is_record_invalid(ignore_filter,record):
                 continue
 
+            # cope with multiple entries in a row
             for sample_idx, (sample_name, sample_info) in enumerate(
                 record.samples.items()
             ):
 
+                # check to see if the status is ok (or we are ignoring it)
                 if not ignore_status and sample_info["STATUS"] == "FAIL":
                     continue
 
+                # ugly; deals with a problem with Minos/Clockwork getting the GT in the wrong place
                 try:
                     genotype = Genotype(*sample_info["GT"])
                 except TypeError as err:
@@ -163,29 +255,141 @@ class Genome(object):
                     if genotype is None:
                         raise err
 
-                ref_bases,position,alt_bases = self._get_variant_for_genotype_in_vcf_record(genotype, record)
+                # return the call
+                ref_bases,index,alt_bases = self._get_variant_for_genotype_in_vcf_record(genotype, record)
 
+                # bypass for speed if this is a REF call
                 if alt_bases=="":
                     continue
 
-                if len(ref_bases)==len(alt_bases):
+                # deal with everything except HET calls
+                if not isinstance(alt_bases,tuple):
 
-                    coverage=sample_info['COV'][genotype.call1]
-                    model_score=sample_info['GT_CONF']
-                    if 'GT_CONF_PERCENTILE' in sample_info.keys():
-                        model_percentile=sample_info['GT_CONF_PERCENTILE']
+                    # one or more SNPs (this will naturally catch NULLs as well)
+                    if len(ref_bases)==len(alt_bases):
 
-                    for before,after in zip(ref_bases,alt_bases):
+                        for before,after in zip(ref_bases,alt_bases):
 
-                        if before!=after:
-                            self.sequence[position-1]=after
-                            self.coverage[position-1]=coverage
-                            self.model_score[position-1]=model_score
-                            if 'GT_CONF_PERCENTILE' in sample_info.keys():
-                                self.model_percentile[position-1]=model_percentile
+                            # only make a change if the ALT is different to the REF
+                            if before!=after:
 
-                        # increment the position in the genome
-                        position+=1
+                                # find out the coverage
+                                coverage=sample_info['COV'][genotype.call1]
+
+                                # record any additional metadata
+                                self._set_sequence_metadata(index,sample_info)
+
+                                # make the mutation
+                                self._permute_sequence(index,coverage,after=after)
+
+                            # increment the position in the genome
+                            index+=1
+
+                    # an INDEL
+                    else:
+
+                        # calculate the length of the indel
+                        indel_length=len(alt_bases)-len(ref_bases)
+
+                        assert indel_length!=0, "REF: "+ref_bases+" and ALT: "+alt_bases+" same length?"
+
+                        # find out the coverage
+                        coverage=sample_info['COV'][genotype.call1]
+
+                        # record any additional metadata
+                        self._set_sequence_metadata(index,sample_info)
+
+                        # make the mutation
+                        self._permute_sequence(index,coverage,indel_length=indel_length)
+
+                # HET calls
+                else:
+
+                    # alt_bases is now a 2-tuple, so iterate
+                    for strand,alt in enumerate(alt_bases):
+
+                        # one or more SNPs
+                        if len(ref_bases)==len(alt):
+
+                            # have to create a copy of index so it is unaltered for the next strand...
+                            idx=index
+
+                            # walk down the bases
+                            for before,after in zip(ref_bases,alt):
+
+                                # calculate a Boolean mask identifying where we are in the genome
+                                mask=self.index==idx
+
+                                # record any additional metadata
+                                self._set_sequence_metadata(idx,sample_info)
+
+                                # remember the coverage in the diploid representation for this het
+                                self.het_coverage[(mask,strand)]=sample_info['COV'][genotype.call()[strand]]
+
+                                # only record a SNP if there is a change
+                                if before!=after:
+                                    self.het_variations[(mask,strand)]=after
+
+                                idx+=1
+                        else:
+
+                            # calculate the length of the indel
+                            indel_length=len(alt)-len(ref_bases)
+
+                            # calculate a Boolean mask identifying where we are in the genome
+                            mask=self.index==index
+
+                            # record any additional metadata
+                            self._set_sequence_metadata(index,sample_info)
+
+                            # remember the het indel
+                            self.het_coverage[(mask,strand)]=sample_info['COV'][genotype.call()[strand]]
+                            self.het_indel_length[(mask,strand)]=indel_length
+                            self.het_variations[(mask,strand)]="i"
+
+
+        # now that we've parsed the VCF file, and hence all the HETs, we need to update the main sequence
+        # to show that there are HETs
+
+        # pick out all genome locations where one of the diploid sequences has been altered
+        all_hets_mask=(self.het_variations[:,0]!="") | (self.het_variations[:,1]!="")
+
+        # iterate through the genome positions
+        for idx in self.index[all_hets_mask]:
+
+            # where are we?
+            mask=self.index==idx
+
+            # define the total coverage as the sum of the two HET calls
+            coverage=numpy.sum(self.het_coverage[mask])
+
+            # make the mutation, identifying this as a HET call
+            self._permute_sequence(idx,coverage,after='z')
+
+
+    def _set_sequence_metadata(self,idx,sample_info):
+
+        mask=self.index==idx
+
+        for field in self.metadata_fields:
+            if field in sample_info.keys():
+                self.sequence_metadata[field][mask]=sample_info[field]
+
+    def _permute_sequence(self,idx,coverage,after=None,indel_length=0):
+
+        # calculate a Boolean mask identifying where we are in the genome
+        mask=self.index==idx
+
+        # use to assign the coverage
+        self.coverage[mask]=coverage
+
+        # permuate the sequence
+        if after is not None:
+            self.sequence[mask]=after
+
+        # .. and remember the indel length
+        if indel_length!=0:
+            self.indel_length[mask]=indel_length
 
     def save_sequence(self,filename=None):
 
@@ -200,7 +404,7 @@ class Genome(object):
 
         numpy.savez_compressed(filename,sequence=self.sequence)
 
-    def save_fasta(self,filename=None,compression=False,compresslevel=2,additional_metadata=None,chars_per_line=70,nucleotides_uppercase=True):
+    def save_fasta(self,filename=None,compression=False,compresslevel=2,chars_per_line=70,nucleotides_uppercase=True):
 
         '''
         Save the genome as a FASTA file.
@@ -209,7 +413,7 @@ class Genome(object):
             filename (str): path of the output file
             compression (bool): If True, save compressed using gzip. (bzip2 is too slow)
             compresslevel (0-9): the higher the number, the harder the algorithm tries to compress but it takes longer. Default is 2.
-            additional_metadata (str): will be added to the header of the FASTA file
+            # additional_metadata (str): will be added to the header of the FASTA file
             chars_per_line (int): the number of characters per line. Default=70. Must be either a positive integer or None (i.e. no CRs)
         '''
 
@@ -233,8 +437,8 @@ class Genome(object):
         if hasattr(self,'organism'):
             header+=self.organism+"|"
         header+=self.sample_name
-        if additional_metadata is not None:
-            header+="|" + additional_metadata
+        # if additional_metadata is not None:
+        #     header+="|" + additional_metadata
         header+="\n"
 
         # create a string of the genome
@@ -294,7 +498,7 @@ class Genome(object):
             )
 
 
-        return ref_bases,record.pos,variant
+        return ref_bases,int(record.pos),variant
 
     def _is_record_invalid(self, ignore_filter: bool, record: pysam.VariantRecord) -> bool:
         """
