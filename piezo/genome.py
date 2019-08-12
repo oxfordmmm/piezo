@@ -1,4 +1,4 @@
-import gzip, os, pickle
+import gzip, os, pickle, time
 from collections import defaultdict
 
 import numpy, h5py
@@ -11,7 +11,7 @@ from piezo import Genotype
 
 class Genome(object):
 
-    def __init__(self,genbank_file=None,fasta_file=None,show_progress_bar=False):
+    def __init__(self,genbank_file=None,fasta_file=None,show_progress_bar=False,default_promoter_length=100):
 
         '''
         Instantiates a genome object by loading a VCF file and storing the whole genome as a numpy array
@@ -58,10 +58,15 @@ class Genome(object):
                 self.sample_metadata['TAXONOMY']=reference_genome.annotations['taxonomy']
 
             self.gene=numpy.zeros(self.length,dtype="<U10")
+            self.is_gene=numpy.zeros(self.length,dtype=bool)
+            self.base_in_gene_or_promoter=numpy.zeros(self.length,dtype=bool)
+
             self.gene_type=defaultdict(str)
             self.gene_is_reverse=defaultdict(str)
-            self.is_gene=numpy.zeros(self.length,dtype=bool)
+            self.gene_index_start=defaultdict(str)
+            self.gene_index_end=defaultdict(str)
 
+            # go through the GenBank file record-by-record
             for record in tqdm(reference_genome.features,disable=not(show_progress_bar)):
 
                 if record.type in ['CDS','rRNA']:
@@ -102,10 +107,12 @@ class Genome(object):
                         else:
                             mask=(self.index>=gene_start) & (self.index<gene_end) & (~self.is_gene)
 
-
                         self.gene[mask]=gene_name
                         self.is_gene[mask]=True
                         self.gene_type[gene_name]=gene_type
+
+                        self.gene_index_start[gene_name]=gene_start
+                        self.gene_index_end[gene_name]=gene_end
 
                         if record.strand==1:
                             self.gene_is_reverse[gene_name]=False
@@ -114,9 +121,25 @@ class Genome(object):
                         else:
                             raise TypeError("gene in GenBank file has strand that is not 1 or -1")
 
-
+            # store a list of all the gene names
             self.gene_names=numpy.unique(self.gene[self.gene!=""])
 
+            self.promoter=numpy.zeros(self.length,dtype="<U10")
+            self.is_promoter=numpy.zeros(self.length,dtype=bool)
+
+            # iterate through the genes and identify promoters, taking account of genes on the reverse strand
+            for gene in tqdm(self.gene_names,disable=not(show_progress_bar)):
+
+                if self.gene_is_reverse[gene]:
+                    promoter_mask=(self.index>self.gene_index_end[gene]) & (self.index<=self.gene_index_end[gene]+default_promoter_length) & (~self.is_gene) & (~self.is_promoter)
+                else:
+                    promoter_mask=(self.index>self.gene_index_start[gene]-default_promoter_length) & (self.index<=self.gene_index_start[gene]) & (~self.is_gene) & (~self.is_promoter)
+
+                self.promoter[promoter_mask]=gene
+                self.is_promoter[promoter_mask]=True
+
+            self.is_gene_or_promoter=self.is_gene+self.is_promoter
+            self.gene_or_promoter=numpy.char.add(self.gene,self.promoter)
 
         # otherwise there must be a FASTA file so load that instead
         elif fasta_file is not None:
@@ -144,17 +167,6 @@ class Genome(object):
 
         # store the sequence as integers 0,1,2,3 with which bases they refer to in bases_integer_lookup
         self.bases_integer_lookup, self.integers = numpy.unique(self.sequence, return_inverse=True)
-
-        # create a set of mutually exclusive Boolean arrays that tell you what the 'single sequence' result is
-        self.is_ref=numpy.zeros(self.length,dtype=bool)
-        self.is_null=numpy.zeros(self.length,dtype=bool)
-        self.is_het=numpy.zeros(self.length,dtype=bool)
-        self.is_snp=numpy.zeros(self.length,dtype=bool)
-        self.is_indel=numpy.zeros(self.length,dtype=bool)
-
-        # create a diploid version of the sequence to handle HET calls later
-        # self.het_sequence=numpy.array((i,i) for i in self.sequence)
-
 
     def __repr__(self):
 
@@ -186,7 +198,29 @@ class Genome(object):
 
         mask=self.sequence!=other.sequence
 
-        return(self.sequence[mask],self.index[mask],other.sequence[mask])
+        return(self.sequence[mask],self.index[mask],other.sequence[mask],self.gene[mask],self.promoter[mask])
+
+    def contains_gene(self,gene_name):
+
+        if gene_name in self.gene_names:
+            return True
+        else:
+            return False
+
+    def at_index(self,index):
+
+        mask=self.index==index
+
+        putative_gene=self.gene[mask]
+
+        if putative_gene!="":
+            return (putative_gene[0],self.gene_type[putative_gene[0]])
+        else:
+            putative_promoter=self.promoter[mask]
+            if putative_promoter!="":
+                return (putative_promoter[0],"PROM")
+            else:
+                return None
 
     def calculate_snp_distance(self,other):
         return (numpy.count_nonzero(self.sequence!=other.sequence))
@@ -205,6 +239,13 @@ class Genome(object):
         # since we are now applying a VCF file, it makes sense to create these numpy arrays
         self.coverage=numpy.zeros(self.length)
         self.indel_length=numpy.zeros(self.length,int)
+
+        # create a set of mutually exclusive Boolean arrays that tell you what the 'single sequence' result is
+        self.is_ref=numpy.zeros(self.length,dtype=bool)
+        self.is_null=numpy.zeros(self.length,dtype=bool)
+        self.is_het=numpy.zeros(self.length,dtype=bool)
+        self.is_snp=numpy.zeros(self.length,dtype=bool)
+        self.is_indel=numpy.zeros(self.length,dtype=bool)
 
         # set up a dictionary for the metadata since the field names will vary between calling calling codes
         # for Clockwork these will be GT_CONF and GT_CONF_PERCENTILE
@@ -387,9 +428,19 @@ class Genome(object):
         if after is not None:
             self.sequence[mask]=after
 
+            if after=='x':
+                self.is_null[mask]=True
+            elif after=='z':
+                self.is_het[mask]=True
+            elif after in ['a','c','t','g']:
+                self.is_snp[mask]=True
+            else:
+                raise TypeError("passed base "+after+" not one of a,t,c,g,z,x")
+
         # .. and remember the indel length
         if indel_length!=0:
             self.indel_length[mask]=indel_length
+            self.is_indel[mask]=True
 
     def save_sequence(self,filename=None):
 

@@ -32,6 +32,8 @@ def test_Genome_instantiate_genbank():
     last_codon="".join(i for i in sequence[-3:])
     assert last_codon=="taa"
 
+
+
     # try a reverse complement gene
     assert reference.gene_is_reverse['katG'] is True
     assert reference.gene_type['katG']=="GENE"
@@ -83,6 +85,26 @@ def test_Genome___sub__():
     assert original_bases[0]=='g'
     assert new_bases[0]=='t'
     assert indices[0]==3
+
+def test_Genome_contains_gene():
+
+    assert reference.contains_gene("rpoB")
+    assert not reference.contains_gene("rpoD")
+    assert not reference.contains_gene(5)
+    assert not reference.contains_gene("")
+    assert not reference.contains_gene("rpoBC")
+    assert not reference.contains_gene("RPOB")
+
+def test_Genome_at_index():
+
+    assert reference.at_index(1471845)==('rrs', 'PROM')
+    assert reference.at_index(1471846)==('rrs', 'RNA')
+    assert reference.at_index(759807)==('rpoB', 'GENE')
+    assert reference.at_index(759806)==('rpoB', 'PROM')
+    assert reference.at_index(759707)==('rpoB', 'PROM')
+    assert reference.at_index(759706)==''
+    assert reference.at_index(763325)==('rpoB', 'GENE')
+    assert reference.at_index(763326)==('rpoC', 'PROM')
 
 def test_Genome_calculate_snp_distance():
 

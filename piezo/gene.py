@@ -10,11 +10,13 @@ class Gene(object):
 
     """Gene object that uses underlying numpy arrays"""
 
-    def __init__(self,gene_name=None,nucleotides=None,first_amino_acid_position=1,first_nucleotide_index=None,reverse=False,element_type=None):
+    def __init__(self,gene_name=None,nucleotides=None,first_amino_acid_position=1,first_nucleotide_index=None,reverse=False,gene_type=None):
+
+        assert gene_type in ['GENE','LOCUS','RNA'], "gene_type must be one of GENE, LOCUS, RNA"
 
         # store various arguments as class variables
         self.gene_name=gene_name
-        self.element_type=element_type
+        self.gene_type=gene_type
         self.nucleotide_first_index=nucleotide_first_index
         self.reverse=reverse
 
@@ -93,28 +95,6 @@ class Gene(object):
         # lastly, recompute the sequence
         self.update()
 
-    def update(self):
-
-        # recreate the strings from the arrays (as the latter are changed by mutate_bases)
-        self.coding_nucleotides_string="".join(map(str,self.coding_nucleotides[0])),"".join(map(str,self.coding_nucleotides[1]))
-        self.promoter_nucleotides_string="".join(map(str,self.promoter_nucleotides[0])),"".join(map(str,self.promoter_nucleotides[1]))
-
-        # first find out the reverse complement if strand==-1 in the GenBank file
-        if self.reverse:
-            self.coding_string=self._reverse_complement(self.coding_nucleotides_string[0]),self._reverse_complement(self.coding_nucleotides_string[1])
-            self.coding_sequence=numpy.array([i for i in self.coding_string[0]]),numpy.array([i for i in self.coding_string[1]])
-
-            rev_nucs=self._reverse_complement(self.promoter_nucleotides_string[0]),self._reverse_complement(self.promoter_nucleotides_string[1])
-            self.promoter_sequence=numpy.array([i for i in rev_nucs[0]]),numpy.array([i for i in rev_nucs[1]])
-        else:
-            self.coding_string=self.coding_nucleotides_string
-            self.coding_sequence=numpy.array([i for i in self.coding_string[0]]),numpy.array([i for i in self.coding_string[1]])
-            self.promoter_sequence=numpy.array([i for i in self.promoter_nucleotides_string[0]]),numpy.array([i for i in self.promoter_nucleotides_string[1]])
-
-        # only translate the sequence if it is a protein coding element
-        if self.element_type in ['GENE','LOCUS']:
-            self._translate_sequence()
-
     def _translate_sequence(self):
 
         self.triplets=numpy.array([self.coding_string[0][i:i+3] for i in range(0,len(self.coding_string[0]),3)]),numpy.array([self.coding_string[1][i:i+3] for i in range(0,len(self.coding_string[1]),3)])
@@ -147,176 +127,8 @@ class Gene(object):
             output+="%i to %i\n" % (self.amino_acid_position[0],self.amino_acid_position[-1])
         return(output)
 
-    def apply_variant(self, position=None, ref_bases=None, alt_bases=None, model_score=None, model_percentile=None, coverage=None):
-
-        # deal with everything except HET calls
-        if not isinstance(alt_bases,tuple):
-
-            if len(ref_bases)==len(alt_bases):
-
-                for before,after in zip(ref_bases,alt_bases):
-
-                    if before!=after:
-
-                        # try:
-                        for strand in [0,1]:
-                            self.mutate_base(strand=strand,position=position,original_base=before,new_base=after,coverage=coverage,model_score=model_score,model_percentile=model_percentile)
-                        # except:
-                        #     print(before,after)
-
-                    # increment the position in the genome
-                    position+=1
-
-            # this is a INDEL call
-            else:
-
-                # find out where the mutation is
-                (type,location)=self.return_location(position)
-
-                # be defensive; the above only returns None if the position isn't in the gene
-                if type is not None:
-
-                    if type=="CDS":
-                        cds=True
-                        promoter=False
-                    elif type=="PROMOTER":
-                        cds=False
-                        promoter=True
-                    else:
-                        raise ValueError("Only CDS or PROMOTER can be returned: was given "+type)
-
-                    mutation_name=str(location)+"_indel"
-
-                    for strand in [0,1]:
-                        self.store_indel(mutation=mutation_name,position=position,strand=strand,ref=ref_bases,alt=alt_bases,coverage=coverage,model_score=model_score,model_percentile=model_percentile)
-
-        # now handle HET calls
-        else:
-
-            for strand,alt in enumerate(alt_bases):
-
-                if len(ref_bases)==len(alt):
-
-                    pos=position
-
-                    for before,after in zip(ref_bases,alt):
-
-                        # if before!=after:
-
-                            # try:
-                        self.mutate_base(strand=strand,position=pos,original_base=before,new_base=after,coverage=coverage[strand],model_score=model_score,model_percentile=model_percentile)
-
-                        pos+=1
-
-                else:
-
-                    # find out where the mutation is
-                    (type,location)=self.return_location(position)
-
-                    # be defensive; the above only returns None if the position isn't in the gene
-                    if type is not None:
-
-                        if type=="CDS":
-                            cds=True
-                            promoter=False
-                        elif type=="PROMOTER":
-                            cds=False
-                            promoter=True
-                        else:
-                            raise ValueError("Only CDS or PROMOTER can be returned: was given "+type)
-
-                        mutation_name=str(location)+"_indel"
-
-                        self.store_indel(mutation=mutation_name,position=position,strand=strand,ref=ref_bases,alt=alt,coverage=coverage[strand],model_score=model_score,model_percentile=model_percentile)
 
 
-
-    def store_indel(self, mutation=None, position=None,  strand=None, ref=None, alt=None, coverage=None, model_score=None, model_percentile=None):
-
-        assert strand in [0,1], "strand must be 0 or 1"
-
-        assert ref!=alt, "not a mutation!"
-
-        cols=mutation.split("_")
-
-        assert len(cols)==2, "indel passed not in form 1300_indel"
-
-        # self.indels[strand][mutation]={ 'REF':ref.lower(), 'ALT':alt.lower(), 'REF_COVERAGE':coverage[0], 'ALT_COVERAGE':coverage[1], 'MODEL_SCORE':model_score, 'GENOME_POSITION':genome_position}
-        self.indels[strand][mutation]={ 'REF':ref.lower(), 'ALT':alt.lower(), 'COVERAGE':coverage, 'MODEL_SCORE':model_score, 'GENOME_POSITION':position}
-
-    def mutate_base(self, position=None, strand=None, original_base=None, new_base=None, coverage=None, model_score=None, model_percentile=None):
-
-        assert original_base.lower() in ['a','c','t','g'], "not been given a nucleotide!"
-
-        assert position>-101, "position not an integer >= -100 (for promoter)"
-
-        assert new_base.lower() in ['a','c','t','g','x','z'], "not been given a nucleotide!"
-
-        # assert original_base!=new_base, "not a mutation!"
-
-        assert strand in [0,1], "strand must be 0 or 1"
-
-        # is the position in the coding sequence or the promoter?
-        if (position in self.coding_nucleotides_index):
-
-            # make a Boolean mask identifying the position to mutate
-            location=self.coding_nucleotides_index==position
-
-            # more paranoia
-            assert numpy.sum(location)==1, "WARNING: trying to mutate "+self.gene_name+" at position "+str(position)+" from "+original_base+" to "+new_base+" and the mask has "+str(numpy.sum(location))+" locations"
-
-            # check that the passed reference base matches what we think it should be
-            # if self.coding_nucleotides[0][location][0]!=original_base.lower():
-            #     logging.warning(self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.coding_nucleotides[0][location][0]+" in the GenBank file! (Genbank version mismatch?)" )
-            assert self.coding_nucleotides[strand][location][0]==original_base.lower(), self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.coding_nucleotides[strand][location][0]+" in the GenBank file! (Genbank version mismatch?)"
-
-            # mutate to the new base
-            if original_base!=new_base:
-
-                self.coding_nucleotides[strand][location]=new_base
-
-            self.coding_score[location]=float(model_score)
-            self.coding_percentile[location]=float(model_percentile)
-            # self.coding_coverage_ref[location]=int(coverage)
-            self.coding_coverage[strand][location]=int(coverage)
-
-            # recreate the string
-            # self.coding_nucleotides_string="".join(map(str,self.coding_nucleotides))
-            # for i in self.coding_nucleotides:
-            #     self.coding_nucleotides_string+=i
-
-        elif position in self.promoter_nucleotides_index:
-
-            # make a Boolean mask identifying the position to mutate
-            location=self.promoter_nucleotides_index==position
-
-            # more paranoia
-            assert numpy.sum(location)==1, "WARNING: trying to mutate "+self.gene_name+" at position "+str(position)+" from "+original_base+" to "+new_base+" and the mask has "+str(numpy.sum(location))+" locations"
-
-            # check that the passed reference base matches what we think it should be
-            # if self.promoter_nucleotides[0][location]!=original_base.lower():
-            #     logging.warning(self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.promoter_nucleotides[location][0]+" in the GenBank file! (Genbank version mismatch?)" )
-            assert self.promoter_nucleotides[strand][location][0]==original_base.lower(), self.gene_name+","+str(position)+",supplied wildtype base "+original_base.lower()+" does not match coding of "+self.promoter_nucleotides[strand][location][0]+" in the GenBank file! (Genbank version mismatch?)"
-
-            # mutate to the new base
-            if original_base!=new_base:
-                self.promoter_nucleotides[strand][location]=new_base.lower()
-
-            self.promoter_score[location]=float(model_score)
-            self.promoter_percentile[location]=float(model_percentile)
-            # self.promoter_coverage_alt[location]=int(coverage[1])
-            self.promoter_coverage_alt[strand][location]=int(coverage)
-
-            # recreate the string
-            # self.promoter_nucleotides_string=""
-            # for i in self.promoter_nucleotides:
-            #     self.promoter_nucleotides_string+=i
-
-        else:
-
-            logging.warning(self.gene_name+","+str(position)+",position not in CDS or promoter of gene")
-
-        # self._recompute_sequence()
 
     def _reverse_complement(self,nucleotides_string):
 
