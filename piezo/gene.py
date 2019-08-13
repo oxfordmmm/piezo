@@ -13,6 +13,7 @@ class Gene(object):
     def __init__(self,gene_name=None,nucleotides=None,first_amino_acid_position=1,first_nucleotide_index=None,reverse=False,gene_type=None):
 
         assert gene_type in ['GENE','LOCUS','RNA'], "gene_type must be one of GENE, LOCUS, RNA"
+        assert reverse in [True,False], "reverse must be True or False only"
 
         # store various arguments as class variables
         self.gene_name=gene_name

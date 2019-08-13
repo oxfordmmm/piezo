@@ -25,24 +25,64 @@ def test_Genome_instantiate_genbank():
     # try a normal gene
     assert reference.gene_is_reverse['rpoB'] is False
     assert reference.gene_type['rpoB']=="GENE"
+
     mask=reference.gene=="rpoB"
+
     sequence=reference.sequence[mask]
     first_codon="".join(i for i in sequence[:3])
     assert first_codon=="ttg"
     last_codon="".join(i for i in sequence[-3:])
     assert last_codon=="taa"
 
+    sequence=reference.coding_sequence[mask]
+    first_codon="".join(i for i in sequence[:3])
+    assert first_codon=="ttg"
+    last_codon="".join(i for i in sequence[-3:])
+    assert last_codon=="taa"
 
+    mask=reference.promoter=="rpoB"
+    sequence=reference.sequence[mask]
+    first_codon="".join(i for i in sequence[:3])
+    assert first_codon=="cgc"
+    last_codon="".join(i for i in sequence[-3:])
+    assert last_codon=="atc"
+
+    sequence=reference.coding_sequence[mask]
+    first_codon="".join(i for i in sequence[:3])
+    assert first_codon=="cgc"
+    last_codon="".join(i for i in sequence[-3:])
+    assert last_codon=="atc"
 
     # try a reverse complement gene
     assert reference.gene_is_reverse['katG'] is True
     assert reference.gene_type['katG']=="GENE"
     mask=reference.gene=="katG"
-    sequence=reference.sequence[mask]
+
+    # reverse the sequence
+    sequence=reference.sequence[mask][::-1]
+    first_codon="".join(i for i in sequence[:3])
+    assert first_codon=="cac"
+    last_codon="".join(i for i in sequence[-3:])
+    assert last_codon=="act"
+
+    sequence=reference.coding_sequence[mask][::-1]
+    first_codon="".join(i for i in sequence[:3])
+    assert first_codon=="gtg"
+    last_codon="".join(i for i in sequence[-3:])
+    assert last_codon=="tga"
+
+    mask=reference.promoter=="katG"
+    sequence=reference.sequence[mask][::-1]
+    first_codon="".join(i for i in sequence[:3])
+    assert first_codon=="agt"
+    last_codon="".join(i for i in sequence[-3:])
+    assert last_codon=="cga"
+
+    sequence=reference.coding_sequence[mask][::-1]
     first_codon="".join(i for i in sequence[:3])
     assert first_codon=="tca"
     last_codon="".join(i for i in sequence[-3:])
-    assert last_codon=="cac"
+    assert last_codon=="gct"
 
 
 reference2=Genome(fasta_file="config/H37rV_v3.fasta.gz")
@@ -88,12 +128,12 @@ def test_Genome___sub__():
 
 def test_Genome_contains_gene():
 
-    assert reference.contains_gene("rpoB")
-    assert not reference.contains_gene("rpoD")
-    assert not reference.contains_gene(5)
-    assert not reference.contains_gene("")
-    assert not reference.contains_gene("rpoBC")
-    assert not reference.contains_gene("RPOB")
+    assert reference.contains_gene("rpoB")==True
+    assert reference.contains_gene("rpoD")==False
+    assert reference.contains_gene(5)==False
+    assert reference.contains_gene("")==False
+    assert reference.contains_gene("rpoBC")==False
+    assert reference.contains_gene("RPOB")==False
 
 def test_Genome_at_index():
 
@@ -102,7 +142,7 @@ def test_Genome_at_index():
     assert reference.at_index(759807)==('rpoB', 'GENE')
     assert reference.at_index(759806)==('rpoB', 'PROM')
     assert reference.at_index(759707)==('rpoB', 'PROM')
-    assert reference.at_index(759706)==''
+    assert reference.at_index(759706) is None
     assert reference.at_index(763325)==('rpoB', 'GENE')
     assert reference.at_index(763326)==('rpoC', 'PROM')
 
@@ -124,11 +164,13 @@ def test_Genome_calculate_snp_distance():
 def test_Genome_apply_vcf():
 
     sample_03=copy.deepcopy(reference)
-    sample_03.apply_vcf_file(vcf_file=TEST_CASE_DIR+"03.vcf",ignore_status=True,ignore_filter=True)
+    sample_03.apply_vcf_file(vcf_file=TEST_CASE_DIR+"03.vcf",ignore_status=True,ignore_filter=True,metadata_fields=['GT_CONF'])
     (original_bases,indices,new_bases)=reference-sample_03
     assert original_bases[0]=='c'
     assert indices[0]==761155
     assert new_bases[0]=='t'
+    assert sample_03.coverage[sample_03.index==761155]==68
+    assert sample_03.sequence_metadata['GT_CONF'][sample_03.index==761155][0]==pytest.approx(613.77)
 
     sample_04=copy.deepcopy(reference)
     sample_04.apply_vcf_file(vcf_file=TEST_CASE_DIR+"04.vcf",ignore_status=True,ignore_filter=True,metadata_fields=['GT_CONF'])
@@ -136,3 +178,5 @@ def test_Genome_apply_vcf():
     assert original_bases[0]=='c'
     assert indices[0]==2155168
     assert new_bases[0]=='g'
+    assert sample_04.coverage[sample_04.index==2155168]==53
+    assert sample_04.sequence_metadata['GT_CONF'][sample_04.index==2155168][0]==pytest.approx(500.23)

@@ -1,4 +1,4 @@
-import gzip, os, pickle, time
+import gzip, os, pickle, time, copy
 from collections import defaultdict
 
 import numpy, h5py
@@ -39,6 +39,10 @@ class Genome(object):
             # convert to a numpy array at the first opportunity since slicing BioPython is between 10 and 50,000 times slower!
             self.sequence=numpy.array([i.lower() for i in str(reference_genome.seq)])
 
+            # create the complementary strand upfront
+            complementary_bases = {'a': 't', 'c': 'g', 'g': 'c', 't': 'a', 'x':'x', 'z':'z'}
+            self.complementary_sequence=numpy.array([complementary_bases[i] for i in self.sequence])
+
             # store the length of the genome
             self.length=len(self.sequence)
 
@@ -59,12 +63,19 @@ class Genome(object):
 
             self.gene=numpy.zeros(self.length,dtype="<U10")
             self.is_gene=numpy.zeros(self.length,dtype=bool)
-            self.base_in_gene_or_promoter=numpy.zeros(self.length,dtype=bool)
+            self.promoter=numpy.zeros(self.length,dtype="<U10")
+            self.is_promoter=numpy.zeros(self.length,dtype=bool)
+            self.reverse=numpy.zeros(self.length,dtype=bool)
+            self.type=numpy.zeros(self.length,dtype="<U5")
+            self.gene_or_promoter=numpy.zeros(self.length,dtype=bool)
 
             self.gene_type=defaultdict(str)
             self.gene_is_reverse=defaultdict(str)
             self.gene_index_start=defaultdict(str)
             self.gene_index_end=defaultdict(str)
+
+            self.coding_sequence=copy.deepcopy(self.sequence)
+            self.coding_position=numpy.zeros(self.length,int)
 
             # go through the GenBank file record-by-record
             for record in tqdm(reference_genome.features,disable=not(show_progress_bar)):
@@ -72,6 +83,7 @@ class Genome(object):
                 if record.type in ['CDS','rRNA']:
 
                     gene_name=None
+                    gene_type=None
 
                     if 'gene' in record.qualifiers.keys():
 
@@ -98,48 +110,71 @@ class Genome(object):
 
                         gene_start=int(record.location.start)
                         gene_end=int(record.location.end)
-                        gene_reverse=bool(record.strand)
-
-                        # need to check a gene is already there, otherwise genes later in the GenBank file will
-                        # overwrite those already allocated.
-                        if gene_reverse:
-                            mask=(self.index>gene_start) & (self.index<=gene_end) & (~self.is_gene)
-                        else:
-                            mask=(self.index>=gene_start) & (self.index<gene_end) & (~self.is_gene)
-
-                        self.gene[mask]=gene_name
-                        self.is_gene[mask]=True
-                        self.gene_type[gene_name]=gene_type
-
-                        self.gene_index_start[gene_name]=gene_start
-                        self.gene_index_end[gene_name]=gene_end
 
                         if record.strand==1:
+
                             self.gene_is_reverse[gene_name]=False
+
+                            # need to check a gene is not already there, otherwise genes later in the GenBank file will
+                            # overwrite those already allocated.
+                            gene_mask=(self.index>gene_start) & (self.index<=gene_end) & (~self.is_gene)
+                            promoter_mask=(self.index>gene_start-default_promoter_length) & (self.index<=gene_start) & (~self.is_gene) & (~self.is_promoter)
+
+                            mask=gene_mask+promoter_mask
+
+                            promoter_coding_position=self.index[promoter_mask]-gene_start-1
+
+                            if gene_type in ["GENE","LOCUS"]:
+                                gene_coding_position=numpy.floor_divide(self.index[gene_mask]-gene_start+2,3)
+                            else:
+                                gene_coding_position=-1*(numpy.floor_divide(self.index[gene_mask]-gene_end-1,3))
+
                         elif record.strand==-1:
+
                             self.gene_is_reverse[gene_name]=True
+
+                            gene_mask=(self.index>gene_start) & (self.index<=gene_end) & (~self.is_gene)
+                            promoter_mask=(self.index>gene_end) & (self.index<=gene_end+default_promoter_length) & (~self.is_gene) & (~self.is_promoter)
+
+                            mask=gene_mask+promoter_mask
+
+                            # the default value is False, so only need to set those which are reversed
+                            self.reverse[mask]=True
+
+                            # replace the coding sequence with the complement
+                            self.coding_sequence[mask]=self.complementary_sequence[mask]
+
+                            promoter_coding_position=-1*(self.index[promoter_mask]-gene_end)
+
+                            if gene_type in ["GENE","LOCUS"]:
+                                gene_coding_position=-1*(numpy.floor_divide(self.index[gene_mask]-gene_end-1,3))
+                            else:
+                                gene_coding_position=-1*(self.index[gene_mask]-gene_end)
+
                         else:
                             raise TypeError("gene in GenBank file has strand that is not 1 or -1")
 
+
+                        self.type[mask]=gene_type
+                        self.gene[gene_mask]=gene_name
+                        self.promoter[gene_mask]=''
+                        self.promoter[promoter_mask]=gene_name
+                        self.gene_or_promoter[mask]=gene_name
+
+                        self.coding_position[gene_mask]=gene_coding_position
+                        self.coding_position[promoter_mask]=promoter_coding_position
+
+                        self.is_gene[gene_mask]=True
+                        self.is_promoter[gene_mask]=False
+                        self.is_promoter[promoter_mask]=True
+
+                        self.gene_type[gene_name]=gene_type
+                        self.gene_index_start[gene_name]=gene_start
+                        self.gene_index_end[gene_name]=gene_end
+
             # store a list of all the gene names
             self.gene_names=numpy.unique(self.gene[self.gene!=""])
-
-            self.promoter=numpy.zeros(self.length,dtype="<U10")
-            self.is_promoter=numpy.zeros(self.length,dtype=bool)
-
-            # iterate through the genes and identify promoters, taking account of genes on the reverse strand
-            for gene in tqdm(self.gene_names,disable=not(show_progress_bar)):
-
-                if self.gene_is_reverse[gene]:
-                    promoter_mask=(self.index>self.gene_index_end[gene]) & (self.index<=self.gene_index_end[gene]+default_promoter_length) & (~self.is_gene) & (~self.is_promoter)
-                else:
-                    promoter_mask=(self.index>self.gene_index_start[gene]-default_promoter_length) & (self.index<=self.gene_index_start[gene]) & (~self.is_gene) & (~self.is_promoter)
-
-                self.promoter[promoter_mask]=gene
-                self.is_promoter[promoter_mask]=True
-
             self.is_gene_or_promoter=self.is_gene+self.is_promoter
-            self.gene_or_promoter=numpy.char.add(self.gene,self.promoter)
 
         # otherwise there must be a FASTA file so load that instead
         elif fasta_file is not None:
@@ -198,7 +233,16 @@ class Genome(object):
 
         mask=self.sequence!=other.sequence
 
-        return(self.sequence[mask],self.index[mask],other.sequence[mask],self.gene[mask],self.promoter[mask])
+        return(self.sequence[mask],self.index[mask],other.sequence[mask])
+
+    @staticmethod
+    def _complement(nucleotides_array):
+
+        complementary_bases = {'a': 't', 'c': 'g', 'g': 'c', 't': 'a', 'x':'x', 'z':'z'}
+
+        complement=[complementary_bases[i] for i in nucleotides_array]
+
+        return(complement)
 
     def contains_gene(self,gene_name):
 
@@ -208,6 +252,9 @@ class Genome(object):
             return False
 
     def at_index(self,index):
+
+        assert index > 0, "index must be a positive integer!"
+        assert index <= self.length, "index must be less than the length of the genome!"
 
         mask=self.index==index
 
@@ -222,7 +269,7 @@ class Genome(object):
             else:
                 return None
 
-    def calculate_snp_distance(self,other):
+    def snp_distance(self,other):
         return (numpy.count_nonzero(self.sequence!=other.sequence))
 
     def apply_vcf_file(self,vcf_file=None,ignore_filter=False, ignore_status=False,show_progress_bar=False,metadata_fields=None):
@@ -237,8 +284,10 @@ class Genome(object):
         """
 
         # since we are now applying a VCF file, it makes sense to create these numpy arrays
-        self.coverage=numpy.zeros(self.length)
+        self.coverage=numpy.zeros(self.length,int)
         self.indel_length=numpy.zeros(self.length,int)
+        self.indel_ref=numpy.zeros(self.length,dtype='<U50')
+        self.indel_alt=numpy.zeros(self.length,dtype='<U50')
 
         # create a set of mutually exclusive Boolean arrays that tell you what the 'single sequence' result is
         self.is_ref=numpy.zeros(self.length,dtype=bool)
@@ -259,10 +308,16 @@ class Genome(object):
         self.het_variations=numpy.zeros((self.length,2),str)
         self.het_coverage=numpy.zeros((self.length,2),int)
         self.het_indel_length=numpy.zeros((self.length,2),int)
+        self.het_ref=numpy.zeros(self.length,dtype='<U50')
+        self.het_alt=numpy.zeros((self.length,2),dtype='<U50')
 
         # split and remember the path, filename and stem of the VCF file
         (self.vcf_folder,self.vcf_file_name)=os.path.split(vcf_file)
         self.vcf_file_stem, file_extension = os.path.splitext(self.vcf_file_name)
+
+        # it may have been compressed, in which case there will be TWO fileextensions to remove
+        if self.vcf_file_stem[-4:]==".vcf":
+            self.vcf_file_stem, file_extension = os.path.splitext(self.vcf_file_stem)
 
         # assume that the sample name is the filestem and remember
         self.sample_name=self.vcf_file_stem
@@ -298,6 +353,8 @@ class Genome(object):
 
                 # return the call
                 ref_bases,index,alt_bases = self._get_variant_for_genotype_in_vcf_record(genotype, record)
+
+
 
                 # bypass for speed if this is a REF call
                 if alt_bases=="":
@@ -341,7 +398,7 @@ class Genome(object):
                         self._set_sequence_metadata(index,sample_info)
 
                         # make the mutation
-                        self._permute_sequence(index,coverage,indel_length=indel_length)
+                        self._permute_sequence(index,coverage,indel_length=indel_length,indel_bases=(ref_bases,alt_bases))
 
                 # HET calls
                 else:
@@ -368,9 +425,11 @@ class Genome(object):
                                 self.het_coverage[(mask,strand)]=sample_info['COV'][genotype.call()[strand]]
 
                                 # only record a SNP if there is a change
-                                if before!=after:
+                                if (before!=after):
                                     self.het_variations[(mask,strand)]=after
-
+                                    self.het_ref[mask]=ref_bases
+                                    self.het_alt[(mask,0)]=alt_bases[0]
+                                    self.het_alt[(mask,1)]=alt_bases[1]
                                 idx+=1
                         else:
 
@@ -387,7 +446,9 @@ class Genome(object):
                             self.het_coverage[(mask,strand)]=sample_info['COV'][genotype.call()[strand]]
                             self.het_indel_length[(mask,strand)]=indel_length
                             self.het_variations[(mask,strand)]="i"
-
+                            self.het_ref[mask]=ref_bases
+                            self.het_alt[(mask,0)]=alt_bases[0]
+                            self.het_alt[(mask,1)]=alt_bases[1]
 
         # now that we've parsed the VCF file, and hence all the HETs, we need to update the main sequence
         # to show that there are HETs
@@ -407,6 +468,8 @@ class Genome(object):
             # make the mutation, identifying this as a HET call
             self._permute_sequence(idx,coverage,after='z')
 
+        # finally, we need to recompute the coding sequence since any SNPs will have changed the sequence
+        self.coding_sequence[self.reverse]=self.sequence[self.reverse]
 
     def _set_sequence_metadata(self,idx,sample_info):
 
@@ -416,7 +479,7 @@ class Genome(object):
                 if field in sample_info.keys():
                     self.sequence_metadata[field][mask]=sample_info[field]
 
-    def _permute_sequence(self,idx,coverage,after=None,indel_length=0):
+    def _permute_sequence(self,idx,coverage,after=None,indel_length=0,indel_bases=(None,None)):
 
         # calculate a Boolean mask identifying where we are in the genome
         mask=self.index==idx
@@ -427,7 +490,6 @@ class Genome(object):
         # permuate the sequence
         if after is not None:
             self.sequence[mask]=after
-
             if after=='x':
                 self.is_null[mask]=True
             elif after=='z':
@@ -441,6 +503,8 @@ class Genome(object):
         if indel_length!=0:
             self.indel_length[mask]=indel_length
             self.is_indel[mask]=True
+            self.indel_ref[mask]=indel_bases[0]
+            self.indel_alt[mask]=indel_bases[1]
 
     def save_sequence(self,filename=None):
 
@@ -522,7 +586,7 @@ class Genome(object):
         """Retrieves the variant a genotype maps to for a given record.
 
         Args:
-            genotype: The genotype call for the sample.
+            genotype: The genotype call for the sample
             record: A VCF record object.
         Returns:
             str: A hyphen if the call is null (ie ./.) or the alt variant if
