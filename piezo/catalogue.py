@@ -75,11 +75,9 @@ class ResistanceCatalogue(object):
         assert numpy.sum(self.resistance_catalogue["VARIANT_TYPE"].isin([numpy.nan,"SNP","INDEL"]))==self.number_rows, "TYPE column contains entries other than SNP or INDEL"
         assert numpy.sum(self.resistance_catalogue["VARIANT_AFFECTS"].isin([numpy.nan,'CDS','PROM','RNA']))==self.number_rows, "AFFECTS column contains entries other than CDS, PROM or RNA"
 
-        print(self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"]))
-
         # insist that there are no duplicated rows
         n_duplicated_rows=len(self.resistance_catalogue.loc[self.resistance_catalogue.duplicated(subset=["DRUG","GENE","MUTATION"],keep='first')])
-        assert n_duplicated_rows==0, "There are duplicated rows in the catalogue!"
+        # assert n_duplicated_rows==0, "There are duplicated rows in the catalogue!"
 
         # iterate through the gene names
         for gene_name in self.resistance_catalogue.GENE.unique():
@@ -197,7 +195,7 @@ class ResistanceCatalogue(object):
             # most of the time the predictions will be identical, but this allows them to diverge in future
             result={}
 
-            position_vector=(self.resistance_catalogue.POSITION.isin([str(position),'*']))
+            position_vector=(self.resistance_catalogue.POSITION.isin([position,str(position),'*']))
             variant_affects_vector=(self.resistance_catalogue.VARIANT_AFFECTS==variant_affects)
             variant_type_vector=(self.resistance_catalogue.VARIANT_TYPE==variant_type)
             gene_vector=(self.resistance_catalogue.GENE==gene_name)
