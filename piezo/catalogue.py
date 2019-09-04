@@ -4,11 +4,13 @@ import logging, os
 
 import pandas, numpy
 
-from gemucator import gemucator
+# from piezo import Gene
+# from gemucator import gemucator
+import gumpy
 
 class ResistanceCatalogue(object):
 
-    def __init__(self,input_file=None,log_file=None,genbank_file=None,catalogue_name="LID2015B"):
+    def __init__(self,input_file=None,log_file=None,genbank_file=None,catalogue_name=None,gumpy_genome=None):
 
         '''
         Instantiate a ResistanceCatalogue
@@ -21,11 +23,12 @@ class ResistanceCatalogue(object):
 
         self.catalogue_name=catalogue_name
 
-        # read in the Walker Resistance Catalogue and make a dictionary
-        self.entry={}
 
         # instantiate a gemucator instance using the same GenBank file so we can validate the mutations later on
-        self.reference_genome=gemucator(genbank_file=os.path.abspath(genbank_file))
+        # self.reference_genome=gemucator(genbank_file=os.path.abspath(genbank_file))
+        print("hmm2")
+        # self.reference_genome=gumpy.Genome(genbank_file=os.path.abspath(genbank_file),show_progress_bar=True,name="H37rV_v3")
+        self.reference_genome=gumpy_genome
 
         # read in the catalogue file
         self._parse_catalogue_file(input_file)
@@ -59,7 +62,7 @@ class ResistanceCatalogue(object):
 
         catalogue_version=self.resistance_catalogue.GENBANK_REFERENCE.unique()[0]
 
-        assert catalogue_version==self.reference_genome.version, "Catalogue uses version "+catalogue_version+" whilst genbank file is version "+self.reference_genome.version+" !!"
+        assert catalogue_version==self.reference_genome.id, "Catalogue uses version "+catalogue_version+" whilst genbank file is version "+self.reference_genome.id+" !!"
 
         # only pull out genes which have at least one R row
         relevant_genes=self.resistance_catalogue.loc[self.resistance_catalogue[self.catalogue_name+"_PREDICTION"].isin(['S','U','R'])].GENE.unique()
@@ -82,7 +85,7 @@ class ResistanceCatalogue(object):
         for gene_name in self.resistance_catalogue.GENE.unique():
 
             # be defensive and check this gene exists in our reference
-            assert self.reference_genome.valid_gene(gene_name), gene_name+" does not exist in the supplied GenBank file!"
+            assert self.reference_genome.contains_gene(gene_name), gene_name+" does not exist in the supplied GenBank file!"
 
             # select the rows matching this gene where a drug is specified
             tmp=self.resistance_catalogue.loc[(self.resistance_catalogue.GENE==gene_name) & (~self.resistance_catalogue.DRUG.isna())]
@@ -151,10 +154,10 @@ class ResistanceCatalogue(object):
 
         if validate:
             # check that the gene exists in the reference genome!
-            assert self.reference_genome.valid_gene(gene_name), gene_name+" does not exist in the specified GENBANK file!"
+            assert self.reference_genome.contains_gene(gene_name), gene_name+" does not exist in the specified GENBANK file!"
 
             # also check that the supplied mutation is valid given the reference genome
-            assert self.reference_genome.valid_mutation(gene_mutation), "gene exists but "+gene_mutation+" is badly formed; check the reference amino acid or nucleotide!"
+            assert self.reference_genome.valid_gene_mutation(gene_mutation), "gene exists but "+gene_mutation+" is badly formed; check the reference amino acid or nucleotide!"
 
         # parse the mutation to work out what type of mutation it is, where it acts etc
         (position,variant_affects,variant_type,indel_type,indel_length,indel_bases,before,after)=self._parse_mutation(gene_mutation)
@@ -388,7 +391,7 @@ class ResistanceCatalogue(object):
             if position<0:
                 variant_affects="PROM"
             else:
-                if self.reference_genome.gene_type(cols[0])=='RNA':
+                if self.reference_genome._gene_type[cols[0]]=='RNA':
                     variant_affects="RNA"
                 else:
                     variant_affects="CDS"
@@ -406,7 +409,7 @@ class ResistanceCatalogue(object):
             if position<0:
                 variant_affects="PROM"
             else:
-                if self.reference_genome.gene_type(cols[0])=='RNA':
+                if self.reference_genome._gene_type[cols[0]]=='RNA':
                     variant_affects="RNA"
                 else:
                     variant_affects="CDS"
