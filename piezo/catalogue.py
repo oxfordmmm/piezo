@@ -4,7 +4,6 @@ import logging, os
 
 import pandas, numpy
 
-from piezo import Gene
 from gemucator import gemucator
 
 class ResistanceCatalogue(object):
