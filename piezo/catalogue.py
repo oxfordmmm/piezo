@@ -10,14 +10,13 @@ import gumpy
 
 class ResistanceCatalogue(object):
 
-    def __init__(self,input_file=None,log_file=None,genbank_file=None,catalogue_name=None,gumpy_genome=None):
+    def __init__(self,input_file=None,log_file=None,catalogue_name=None,gumpy_genome=None):
 
         '''
         Instantiate a ResistanceCatalogue
 
         Args:
             input_file (str): path to a resistance catalogue as a CSV file
-            genbank_file (str): path to the matching GenBank file describing the reference genome
             log_file (str): path to a logfile
         '''
 
@@ -26,7 +25,6 @@ class ResistanceCatalogue(object):
 
         # instantiate a gemucator instance using the same GenBank file so we can validate the mutations later on
         # self.reference_genome=gemucator(genbank_file=os.path.abspath(genbank_file))
-        print("hmm2")
         # self.reference_genome=gumpy.Genome(genbank_file=os.path.abspath(genbank_file),show_progress_bar=True,name="H37rV_v3")
         self.reference_genome=gumpy_genome
 
