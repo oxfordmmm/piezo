@@ -109,7 +109,6 @@ if __name__ == "__main__":
     if options.catalogue_file:
         assert options.catalogue_name is not None, "if you specify a catalogue_file you must also specify a catalogue name!"
 
-
     if options.debug:
         print("Loading the reference object..")
 
@@ -137,8 +136,8 @@ if __name__ == "__main__":
     if options.debug:
         print("Creating a sample Genome object by copying the reference Genome object...")
 
-    # create a copy of the wildtype_gene_collection genes which we will then alter according to the VCF file
-    # need a deepcopy to ensure we take all the private variables etc with us, and point just take pointers
+    # create a copy of the reference genome which we will then alter according to the VCF file
+    # need a deepcopy to ensure we take all the private variables etc with us
     sample_genome=deepcopy(reference_genome)
 
     (vcf_folder,vcf_filename)=os.path.split(options.vcf_file)
@@ -310,7 +309,9 @@ if __name__ == "__main__":
             try:
                 valid=reference_genome.valid_gene_mutation(gene_name+"_"+mutation_name)
             except:
-                print(gene_name,mutation_name)
+                valid=False
+
+            assert valid, gene_name+"_"+mutation_name+" is not a valid mutation!"
 
             prediction=resistance_catalogue.predict(gene_mutation=gene_name+"_"+mutation_name,verbose=False)
 
