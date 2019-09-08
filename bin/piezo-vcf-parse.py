@@ -237,7 +237,7 @@ if __name__ == "__main__":
     VARIANT.set_index(['UNIQUEID','VARIANT'],inplace=True,verify_integrity=True)
 
     # save to a CSV file
-    VARIANT.to_csv(vcf_stem+"-variants.csv",header=True)
+    VARIANT.to_csv(vcf_stem+"-VARIANTS.csv",header=True)
 
     if options.debug:
         print("Creating the MUTATIONS table..")
@@ -287,7 +287,7 @@ if __name__ == "__main__":
     MUTATIONS.set_index(["UNIQUEID","GENE",'MUTATION'],inplace=True,verify_integrity=True)
 
     # save to a CSV file
-    MUTATIONS.to_csv("MUTATIONS.csv")
+    MUTATIONS.to_csv(vcf_stem+"-MUTATIONS.csv")
 
     MUTATIONS.reset_index(inplace=True)
 
@@ -342,7 +342,7 @@ if __name__ == "__main__":
 
         EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["UNIQUEID","SITEID","GENE","MUTATION","CATALOGUE_NAME","DRUG","PREDICTION"])
         EFFECTS.set_index(["UNIQUEID","DRUG","GENE","MUTATION","CATALOGUE_NAME"],inplace=True)
-        EFFECTS.to_csv("EFFECTS.csv")
+        EFFECTS.to_csv(vcf_stem+"-EFFECTS.csv")
 
         wgs_prediction_string=""
         for drug in resistance_catalogue.drug_list:
