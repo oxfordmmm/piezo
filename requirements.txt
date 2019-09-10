@@ -1,3 +1,2 @@
-gumpy
 pandas
 numpy
