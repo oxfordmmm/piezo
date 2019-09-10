@@ -26,7 +26,6 @@ class ResistanceCatalogue(object):
 
         # instantiate a gemucator instance using the same GenBank file so we can validate the mutations later on
         # self.reference_genome=gemucator(genbank_file=os.path.abspath(genbank_file))
-        print("hmm2")
         # self.reference_genome=gumpy.Genome(genbank_file=os.path.abspath(genbank_file),show_progress_bar=True,name="H37rV_v3")
         self.reference_genome=gumpy_genome
 
