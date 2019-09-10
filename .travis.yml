@@ -1,0 +1,14 @@
+language: python
+python:
+ - "3.5"
+before_install:
+ - pip install codecov
+install:
+ - pip install -r requirements.txt
+ - git clone https://github.com/philipwfowler/gumpy.git
+ - cd gumpy/
+ - python setup.py install --user
+script: 
+ - python -m pytest --cov=./
+after_success:
+ - codecov 

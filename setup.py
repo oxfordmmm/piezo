@@ -11,12 +11,8 @@ setup(
     install_requires=[
         "numpy >= 1.13",
         "pandas >= 0.23.1",
-        "datreant >= 1.0.2",
-        "PyVCF >= 0.6.8",
-        "Biopython >= 1.70",
-        "tqdm >= 4.19.5"
     ],
-    license='MIT',
+    license='University of Oxford',
     scripts=['bin/piezo-vcf-parse.py'],
     long_description=open('README.md').read(),
     zip_safe=False

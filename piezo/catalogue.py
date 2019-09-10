@@ -4,20 +4,17 @@ import logging, os
 
 import pandas, numpy
 
-# from piezo import Gene
-# from gemucator import gemucator
 import gumpy
 
 class ResistanceCatalogue(object):
 
-    def __init__(self,input_file=None,log_file=None,genbank_file=None,catalogue_name=None,gumpy_genome=None):
+    def __init__(self,input_file=None,log_file=None,catalogue_name=None,gumpy_genome=None):
 
         '''
         Instantiate a ResistanceCatalogue
 
         Args:
             input_file (str): path to a resistance catalogue as a CSV file
-            genbank_file (str): path to the matching GenBank file describing the reference genome
             log_file (str): path to a logfile
         '''
 

@@ -1,0 +1,8 @@
+pandas
+numpy
+h5py
+pysam
+biopython
+tqdm
+pytest
+pytest-cov
