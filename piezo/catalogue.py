@@ -4,8 +4,6 @@ import logging, os
 
 import pandas, numpy
 
-# from piezo import Gene
-# from gemucator import gemucator
 import gumpy
 
 class ResistanceCatalogue(object):

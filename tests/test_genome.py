@@ -2,12 +2,29 @@ import pytest, numpy, copy
 
 from pathlib import Path
 
-from piezo import Genome
+import gumpy
+
+import piezo
 
 TEST_CASE_DIR = "tests/test-cases/"
 
-# reference=Genome(genbank_file="config/H37rV_v3.gbk")
+reference_genome=gumpy.Genome(genbank_file="config/NC_004148.2.gbk",name="NC_004148.2")
+
+resistance_catalogue=piezo.ResistanceCatalogue( input_file="config/NC_004148.2_RSU_catalogue.csv",
+                                            gumpy_genome=reference_genome,
+                                            catalogue_name="TEST" )
+
+
+def test_catalogue_prediction():
+
+    # check a row in the catalogue
+    assert resistance_catalogue.predict("M2_L73P")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
+
+    # check a synonymous mutation has no effect
+    assert resistance_catalogue.predict("M2_L73L")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
 #
+    assert resistance_catalogue.predict("M2_G74I")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+
 # def test_Genome_instantiate_genbank():
 #
 #     # check that the M. tuberculosis H37rV genome is the right length

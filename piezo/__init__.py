@@ -5,4 +5,3 @@
 __version__="0.0.1"
 
 from .catalogue import ResistanceCatalogue
-from .vcf_measurement import VCFMeasurement

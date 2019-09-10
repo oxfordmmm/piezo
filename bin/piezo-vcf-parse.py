@@ -11,10 +11,6 @@ from tqdm import tqdm
 
 import snpit, gumpy, piezo
 
-def parse_cryptic_vcf_filename(filename):
-    cols=filename.split('.')
-    uid="site."+cols[1]+".subj."+cols[5]+".lab."+cols[7]+'.iso.'+cols[3]
-    return(uid,cols[1])
 
 def variant_infer_columns(row):
     if row["IS_INDEL"]:
@@ -221,16 +217,13 @@ if __name__ == "__main__":
     # populate the key columns
     VARIANT[['REF','ALT','INDEL_LENGTH','VARIANT']]=VARIANT.apply(variant_infer_columns,axis=1)
 
-    # infer the UNIQUEID and SITEID from the sample filename
-    uid,site_id=parse_cryptic_vcf_filename(sample_genome.name)
-    VARIANT['UNIQUEID']=uid
-    VARIANT['SITEID']=site_id
+    VARIANT['UNIQUEID']=sample_genome.name
 
     # define some Boolean columns for ease of analysis
     VARIANT[["IN_PROMOTER","IN_CDS","ASSOCIATED_WITH_GENE"]]=VARIANT.apply(variant_assign_booleans,axis=1)
 
     # reorder the columns
-    VARIANT=VARIANT[['UNIQUEID','INDEX','VARIANT','ASSOCIATED_WITH_GENE','GENE','NUMBERING','POSITION','IS_HET','IS_INDEL','IS_NULL','IS_SNP','INDEL_LENGTH','IN_PROMOTER','IN_CDS','REF','ALT','SITEID','COVERAGE','GT_CONF','GT_CONF_PERCENTILE','HET_ALT_0','HET_ALT_1','HET_COVERAGE_0','HET_COVERAGE_1','HET_INDEL_LENGTH_0','HET_INDEL_LENGTH_1','HET_REF','HET_VARIANT_0','HET_VARIANT_1']]
+    VARIANT=VARIANT[['UNIQUEID','INDEX','VARIANT','ASSOCIATED_WITH_GENE','GENE','NUMBERING','POSITION','IS_HET','IS_INDEL','IS_NULL','IS_SNP','INDEL_LENGTH','IN_PROMOTER','IN_CDS','REF','ALT','COVERAGE','GT_CONF','GT_CONF_PERCENTILE','HET_ALT_0','HET_ALT_1','HET_COVERAGE_0','HET_COVERAGE_1','HET_INDEL_LENGTH_0','HET_INDEL_LENGTH_1','HET_REF','HET_VARIANT_0','HET_VARIANT_1']]
 
     # set the index
     VARIANT.set_index(['UNIQUEID','VARIANT'],inplace=True,verify_integrity=True)
@@ -274,13 +267,10 @@ if __name__ == "__main__":
     # calculate the number of nucleotide changes required for this mutation
     MUTATIONS["NUMBER_NUCLEOTIDE_CHANGES"]=MUTATIONS.apply(mutations_count_number_nucleotide_changes,axis=1)
 
-    # infer the UNIQUEID and SITEID from the sample filename
-    uid,site_id=parse_cryptic_vcf_filename(sample_genome.name)
-    MUTATIONS['UNIQUEID']=uid
-    MUTATIONS['SITEID']=site_id
+    MUTATIONS['UNIQUEID']=sample_genome.name
 
     # reorder the columns
-    MUTATIONS=MUTATIONS[["UNIQUEID","GENE","MUTATION","SITEID","MUTATION_TYPE","ELEMENT_TYPE","POSITION","IN_PROMOTER","IN_CDS","IS_SYNONYMOUS","IS_NONSYNONYMOUS","IS_HET","IS_INDEL","IS_NULL","IS_SNP","REF","ALT","NUMBER_NUCLEOTIDE_CHANGES"]]
+    MUTATIONS=MUTATIONS[["UNIQUEID","GENE","MUTATION","MUTATION_TYPE","ELEMENT_TYPE","POSITION","IN_PROMOTER","IN_CDS","IS_SYNONYMOUS","IS_NONSYNONYMOUS","IS_HET","IS_INDEL","IS_NULL","IS_SNP","REF","ALT","NUMBER_NUCLEOTIDE_CHANGES"]]
 
     # set the index
     MUTATIONS.set_index(["UNIQUEID","GENE",'MUTATION'],inplace=True,verify_integrity=True)
@@ -335,13 +325,13 @@ if __name__ == "__main__":
                     elif drug_name and prediction[drug_name]=="R":
                         phenotype[drug_name]="R"
 
-                    EFFECTS_dict[EFFECTS_counter]=[uid,site_id,gene_name,mutation_name,options.catalogue_name,drug_name,prediction[drug_name]]
+                    EFFECTS_dict[EFFECTS_counter]=[sample_genome.name,gene_name,mutation_name,options.catalogue_name,drug_name,prediction[drug_name]]
                     EFFECTS_counter+=1
             else:
-                EFFECTS_dict[EFFECTS_counter]=[uid,site_id,gene_name,mutation_name,options.catalogue_name,"UNK","S"]
+                EFFECTS_dict[EFFECTS_counter]=[sample_genome.name,gene_name,mutation_name,options.catalogue_name,"UNK","S"]
                 EFFECTS_counter+=1
 
-        EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["UNIQUEID","SITEID","GENE","MUTATION","CATALOGUE_NAME","DRUG","PREDICTION"])
+        EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["UNIQUEID","GENE","MUTATION","CATALOGUE_NAME","DRUG","PREDICTION"])
         EFFECTS.set_index(["UNIQUEID","DRUG","GENE","MUTATION","CATALOGUE_NAME"],inplace=True)
         EFFECTS.to_csv(vcf_stem+"-EFFECTS.csv")
 
