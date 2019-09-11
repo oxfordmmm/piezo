@@ -9,7 +9,7 @@ from collections import defaultdict
 import pandas, numpy
 from tqdm import tqdm
 
-import snpit, gumpy, piezo
+import gumpy, piezo
 
 
 def variant_infer_columns(row):
@@ -151,24 +151,6 @@ if __name__ == "__main__":
                                   ignore_status=True,\
                                   ignore_filter=False,\
                                   metadata_fields=['GT_CONF','GT_CONF_PERCENTILE'])
-
-    if options.debug:
-        print("working out the Lineage using snpit...")
-
-    # call snpit to work out the specific species of Mycobacteria
-    tb_lineage = snpit.SnpIt(
-            threshold = 10,
-            ignore_filter=False,
-            ignore_status=True,
-        )
-
-    results=tb_lineage.classify_vcf(options.vcf_file)
-
-    for sample_name, (percentage, lineage) in results.items():
-        metadata["SNPIT_SPECIES"]=lineage.species
-        metadata["SNPIT_LINEAGE"]=lineage.lineage
-        metadata["SNPIT_SUBLINEAGE"]=lineage.sublineage
-        metadata["SNPIT_LINEAGE_PERCENTAGE"]="%.1f %%" % percentage
 
     # #FIXME store some useful features
     # metadata["GENOME_N_HOM"]=n_hom
