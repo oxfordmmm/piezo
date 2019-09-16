@@ -11,12 +11,11 @@ from tqdm import tqdm
 
 import gumpy, piezo
 
-
 def variant_infer_columns(row):
     if row["IS_INDEL"]:
-        ref=sample_genome.indel_ref[sample_genome.genome_index==row["INDEX"]]
-        alt=sample_genome.indel_alt[sample_genome.genome_index==row["INDEX"]]
-        indel_length=sample_genome.indel_length[sample_genome.genome_index==row["INDEX"]]
+        ref=sample_genome.indel_ref[sample_genome.genome_index==row["INDEX"]][0]
+        alt=sample_genome.indel_alt[sample_genome.genome_index==row["INDEX"]][0]
+        indel_length=sample_genome.indel_length[sample_genome.genome_index==row["INDEX"]][0]
         variant=str(row['INDEX'])+"_indel"
     else:
         ref=reference_genome.genome_sequence[sample_genome.genome_index==row["INDEX"]][0]
@@ -98,6 +97,8 @@ if __name__ == "__main__":
     parser.add_argument("--genome_object",default="H37Rv_3.pkl.gz",help="the path to a compressed pickled gumpy Genome object")
     parser.add_argument("--catalogue_file",default=None,required=False,help="the path to the resistance catalogue")
     parser.add_argument("--catalogue_name",default=None,required=False,help="the name of the required catalogue, as defined in the resistance catalogue")
+    parser.add_argument("--ignore_vcf_status",action='store_true',default=False,help="whether to ignore the STATUS field in the vcf (e.g. necessary for some versions of Clockwork VCFs)")
+    parser.add_argument("--ignore_vcf_filter",action='store_true',default=False,help="whether to ignore the FILTER field in the vcf (e.g. necessary for some versions of Clockwork VCFs)")
     parser.add_argument("--progress",action='store_true',default=False,help="whether to show progress using tqdm")
     parser.add_argument("--debug",action='store_true',default=False,help="print progress statements to STDOUT to help debugging")
     options = parser.parse_args()
