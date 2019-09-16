@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.com/philipwfowler/piezo.svg?branch=develop)](https://travis-ci.com/philipwfowler/piezo)
+
+
 # piezo
 
 Takes a Clockwork VCF, a Genetic Catalogue and the associated GenBank file and predicts the effect on the relevant antibiotics. This code was developed as part of the [CRyPTIC](http://www.crypticproject.org) international tuberculosis consortium. If you would like to use the software commercially, please consult the LICENCE file.
