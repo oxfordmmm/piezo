@@ -1,5 +1,4 @@
-[![Build Status](https://travis-ci.com/philipwfowler/piezo.svg?branch=develop)](https://travis-ci.com/philipwfowler/piezo)
-
+[![Build Status](https://travis-ci.com/philipwfowler/piezo.svg?branch=develop)](https://travis-ci.com/philipwfowler/piezo) [![codecov](https://codecov.io/gh/philipwfowler/piezo/branch/develop/graph/badge.svg)](https://codecov.io/gh/philipwfowler/piezo)
 
 # piezo
 
