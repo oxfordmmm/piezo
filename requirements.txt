@@ -6,3 +6,4 @@ biopython
 tqdm
 pytest
 pytest-cov
+gumpy
