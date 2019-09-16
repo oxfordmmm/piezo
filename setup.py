@@ -21,6 +21,5 @@ setup(
     ],
     license='University of Oxford, see LICENSE.md',
     scripts=['bin/piezo-vcf-parse.py'],
-    long_description=open('README.md').read(),
     zip_safe=False
 )
