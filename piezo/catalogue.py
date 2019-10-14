@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 
-import logging, os
+import os
 
 import pandas, numpy
 
@@ -8,14 +8,15 @@ import gumpy
 
 class ResistanceCatalogue(object):
 
-    def __init__(self,input_file=None,log_file=None,catalogue_name=None,gumpy_genome=None):
+    def __init__(self,input_file=None,catalogue_name=None,gumpy_genome=None):
 
         '''
         Instantiate a ResistanceCatalogue
 
         Args:
             input_file (str): path to a resistance catalogue as a CSV file
-            log_file (str): path to a logfile
+            catalogue_name (str): the name of the catalogue e.g. NEJM2018
+            gumpy_genome (object): a Gumpy genome object of the reference
         '''
 
         self.catalogue_name=catalogue_name
@@ -30,7 +31,7 @@ class ResistanceCatalogue(object):
         self._parse_catalogue_file(input_file)
 
         # start logging using the provided log_file path
-        logging.basicConfig(filename=log_file,level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
+        # logging.basicConfig(filename=log_file,level=logging.INFO,format='%(levelname)s, %(message)s', datefmt='%a %d %b %Y %H:%M:%S')
 
     def _parse_catalogue_file(self,input_file):
 

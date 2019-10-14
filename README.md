@@ -47,7 +47,7 @@ First clone/download the repo. Then
 
 ```
 $ cd piezo
-$ ls 
+$ ls
 $ python setup.py develop --user
 ```
 
@@ -79,12 +79,15 @@ In the `piezo` folder there is are two VCF files in `examples/01/01.vcf` and `ex
 
 ```
 $ piezo-vcf-parse.py  --vcf_file examples/01/01.vcf\
-                      --genbank_file config/H37rV_v3.gbk\
+                      --genome_object config/H37rV_v3.pkl.gz\
                       --catalogue_file config/NEJM2018-RSU-catalogue-H37rV_v3.csv\
-                      --catalogue_name NEJM2018
+                      --catalogue_name NEJM2018\
+                      --ignore_vcf_filter\
+                      --ignore_vcf_status\
+                      --progress
 ```
 
-You should see a series of lines written to STDOUT with the high-level predictions, some information about Lineage (gleaned using [snpit](https://github.com/philipwfowler/snpit)). In addition, two CSVs are written here
+You should see a series of lines written to STDOUT with the high-level predictions (In this case the sample is resistant to all four drugs in the NEJM2018 catalogue). In addition, two CSVs are written here
 
 ```
 $ ls examples/01/
@@ -92,7 +95,3 @@ $ ls examples/01/
 ```
 
 The mutations CSV is one row per mutation found in the genes listed in the catalogue, whereas the effects CSV is one row per mutation per drug with the associated predicted phenotype listed. Hence the later is usually a little longer than the former, since some mutations confer effects on multiple drugs.
-
-
-
-

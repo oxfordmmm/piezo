@@ -3,8 +3,6 @@
 import argparse, os, pathlib, pickle, gzip
 
 from copy import deepcopy
-from datetime import datetime
-from collections import defaultdict
 
 import pandas, numpy
 from tqdm import tqdm
@@ -75,16 +73,12 @@ if __name__ == "__main__":
     # check the log folder exists (it probably does)
     pathlib.Path('logs/').mkdir(parents=True, exist_ok=True)
 
-    # create a datestamp for the log files
-    datestamp = datetime.strftime(datetime.now(), '%Y-%m-%d_%H%M')
-
     if options.catalogue_file is not None:
         if options.debug:
             print("Instantiating a Resistance Catalogue..")
 
         # instantiate a Resistance Catalogue instance by passing a text file
         resistance_catalogue=piezo.ResistanceCatalogue( input_file=options.catalogue_file,
-                                                    log_file="logs/piezo-resistance-catalogue-"+datestamp+".csv",
                                                     gumpy_genome=reference_genome,
                                                     catalogue_name=options.catalogue_name )
 
@@ -107,8 +101,8 @@ if __name__ == "__main__":
 
     sample_genome.apply_vcf_file( show_progress_bar=options.progress,\
                                   vcf_file=options.vcf_file,\
-                                  ignore_status=True,\
-                                  ignore_filter=False,\
+                                  ignore_status=options.ignore_vcf_status,\
+                                  ignore_filter=options.ignore_vcf_filter,\
                                   metadata_fields=['GT_CONF','GT_CONF_PERCENTILE'])
 
 
@@ -129,7 +123,7 @@ if __name__ == "__main__":
         VARIANT.set_index(['UNIQUEID','VARIANT','IS_SNP'],inplace=True,verify_integrity=True)
 
         # save to a CSV file
-        VARIANT.to_csv(vcf_stem+"-VARIANTS.csv",header=True)
+        VARIANT.to_csv(vcf_stem+"-variants.csv",header=True)
 
     if options.debug:
         print("Creating the MUTATIONS table..")
@@ -171,20 +165,20 @@ if __name__ == "__main__":
         MUTATIONS.set_index(["UNIQUEID","GENE",'MUTATION'],inplace=True,verify_integrity=True)
 
         # save to a CSV file
-        MUTATIONS.to_csv(vcf_stem+"-MUTATIONS.csv")
+        MUTATIONS.to_csv(vcf_stem+"-mutations.csv")
 
         MUTATIONS.reset_index(inplace=True)
 
+    # by default assume wildtype behaviour so set all drug phenotypes to be susceptible
+    phenotype={}
+    for drug in resistance_catalogue.drug_list:
+        phenotype[drug]="S"
+
     # can only infer predicted effects and ultimate phenotypes if a resistance catalogue has been supplied!
-    if options.catalogue_file is not None:
+    if options.catalogue_file is not None and MUTATIONS is not None:
 
         # subset down to only those mutations in the catalogue for making predictions
         MUTATIONS_IN_CATALOGUE=MUTATIONS.loc[MUTATIONS.GENE.isin(resistance_catalogue.gene_list)]
-
-        # by default assume wildtype behaviour so set all drug phenotypes to be susceptible
-        phenotype={}
-        for drug in resistance_catalogue.drug_list:
-            phenotype[drug]="S"
 
         EFFECTS_dict={}
         EFFECTS_counter=0
@@ -228,11 +222,11 @@ if __name__ == "__main__":
 
         EFFECTS=pandas.DataFrame.from_dict(EFFECTS_dict,orient="index",columns=["UNIQUEID","GENE","MUTATION","CATALOGUE_NAME","DRUG","PREDICTION"])
         EFFECTS.set_index(["UNIQUEID","DRUG","GENE","MUTATION","CATALOGUE_NAME"],inplace=True)
-        EFFECTS.to_csv(vcf_stem+"-EFFECTS.csv")
+        EFFECTS.to_csv(vcf_stem+"-effects.csv")
 
-        wgs_prediction_string=""
-        for drug in resistance_catalogue.drug_list:
-            metadata["WGS_PREDICTION_"+drug]=phenotype[drug]
+    wgs_prediction_string=""
+    for drug in resistance_catalogue.drug_list:
+        metadata["WGS_PREDICTION_"+drug]=phenotype[drug]
 
     print("%40s %s" % ("VCF file", options.vcf_file))
     if options.catalogue_file is not None:
