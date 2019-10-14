@@ -84,8 +84,8 @@ def mutations_split_mutation(row):
 
         if mut[0].isupper():
             gene=row["GENE"]
-            ref=reference_genome.genes[gene].codons[sample_genome.genes[gene].amino_acid_numbering==int(mut[1:-1])][0]
-            alt=sample_genome.genes[gene].codons[sample_genome.genes[gene].amino_acid_numbering==int(mut[1:-1])][0]
+            ref=reference_genome.genes[gene].codons[sample_genome.genes[gene].amino_acid_number==int(mut[1:-1])][0]
+            alt=sample_genome.genes[gene].codons[sample_genome.genes[gene].amino_acid_number==int(mut[1:-1])][0]
             return pandas.Series([ref,int(mut[1:-1]),alt,True,False,None,"SNP"])
         else:
             return pandas.Series([mut[0],int(mut[1:-1]),mut[-1],True,False,None,"SNP"])
@@ -175,8 +175,9 @@ if __name__ == "__main__":
     # create the columns that are common to both SNPs and INDELs for all variants
     VARIANT_dict['INDEX']=index
     VARIANT_dict['GENE']=sample_genome.genome_feature_name[mask]
-    VARIANT_dict['POSITION']=sample_genome.genome_positions[mask]
-    VARIANT_dict['NUMBERING']=sample_genome.genome_numbering[mask]
+    VARIANT_dict['POSITION']=sample_genome.genome_position[mask]
+    VARIANT_dict['AMINO_ACID_NUMBER']=sample_genome.genome_amino_acid_number[mask]
+    VARIANT_dict['NUCLEOTIDE_NUMBER']=sample_genome.genome_nucleotide_number[mask]
     VARIANT_dict['IS_SNP']=sample_genome.is_snp[mask]
     VARIANT_dict['IS_HET']=sample_genome.is_het[mask]
     VARIANT_dict['IS_INDEL']=sample_genome.is_indel[mask]
@@ -196,6 +197,8 @@ if __name__ == "__main__":
 
     # create a preliminary dataframe
     VARIANT=pandas.DataFrame(data=VARIANT_dict)
+
+    print(VARIANT)
 
     # populate the key columns
     VARIANT[['REF','ALT','INDEL_LENGTH','VARIANT']]=VARIANT.apply(variant_infer_columns,axis=1)
