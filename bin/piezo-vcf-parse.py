@@ -11,33 +11,6 @@ from tqdm import tqdm
 
 import gumpy, piezo
 
-def variant_infer_columns(row):
-    if row["IS_INDEL"]:
-        ref=sample_genome.indel_ref[sample_genome.genome_index==row["INDEX"]][0]
-        alt=sample_genome.indel_alt[sample_genome.genome_index==row["INDEX"]][0]
-        indel_length=sample_genome.indel_length[sample_genome.genome_index==row["INDEX"]][0]
-        variant=str(row['INDEX'])+"_indel"
-    else:
-        ref=reference_genome.genome_sequence[sample_genome.genome_index==row["INDEX"]][0]
-        alt=sample_genome.genome_sequence[sample_genome.genome_index==row["INDEX"]][0]
-        indel_length=0
-        variant=str(row['INDEX'])+ref+">"+alt
-    return pandas.Series([ref,alt,indel_length,variant])
-
-def variant_assign_booleans(row):
-    in_promoter=False
-    in_cds=False
-    associated_with_gene=False
-    is_insertion=False
-    is_deletion=False
-    if row["POSITION"]<0:
-        in_promoter=True
-    if row["POSITION"]>0:
-        in_cds=True
-    if row["POSITION"]!=0:
-        associated_with_gene=True
-    return(pandas.Series([in_promoter,in_cds,associated_with_gene]))
-
 def mutations_assign_booleans(row):
     if row['POSITION']<0:
         is_cds=False
@@ -67,28 +40,13 @@ def mutations_assign_booleans(row):
     elif not row["IS_INDEL"]:
         is_snp=True
 
-    return(pandas.Series([is_promoter,is_cds,is_synonymous,is_nonsynonymous,is_het,is_null,is_snp]))
+    return(pandas.Series([is_synonymous,is_nonsynonymous,is_het,is_null]))
 
 def mutations_count_number_nucleotide_changes(row):
     if row['REF'] is not None and len(row['REF'])==3:
         return(numpy.sum([i!=j for (i,j) in zip(row['REF'],row['ALT'] ) ]))
     else:
         return(0)
-
-def mutations_split_mutation(row):
-    if "indel" in row["MUTATION"]:
-        cols=row["MUTATION"].split("_")
-        return(None,int(cols[0]),None,False,True,int(cols[2]),"INDEL")
-    else:
-        mut=row["MUTATION"]
-
-        if mut[0].isupper():
-            gene=row["GENE"]
-            ref=reference_genome.genes[gene].codons[sample_genome.genes[gene].amino_acid_number==int(mut[1:-1])][0]
-            alt=sample_genome.genes[gene].codons[sample_genome.genes[gene].amino_acid_number==int(mut[1:-1])][0]
-            return pandas.Series([ref,int(mut[1:-1]),alt,True,False,None,"SNP"])
-        else:
-            return pandas.Series([mut[0],int(mut[1:-1]),mut[-1],True,False,None,"SNP"])
 
 if __name__ == "__main__":
 
@@ -146,125 +104,76 @@ if __name__ == "__main__":
     if options.debug:
         print("applying the VCF file to sample Genome...")
 
-    # FIXME:(n_hom,n_het,n_ref,n_null)=
+
     sample_genome.apply_vcf_file( show_progress_bar=options.progress,\
                                   vcf_file=options.vcf_file,\
                                   ignore_status=True,\
                                   ignore_filter=False,\
                                   metadata_fields=['GT_CONF','GT_CONF_PERCENTILE'])
 
-    # #FIXME store some useful features
-    # metadata["GENOME_N_HOM"]=n_hom
-    # metadata["GENOME_N_HET"]=n_het
-    # metadata["GENOME_N_REF"]=n_ref
-    # metadata["GENOME_N_NULL"]=n_null
-
 
     if options.debug:
         print("Creating the VARIANTS table..")
 
-    # create a dictionary
-    VARIANT_dict=defaultdict(str)
+    VARIANT=sample_genome.table_variants_wrt(reference_genome)
 
-    # return the list of genome indices where there is variation (SNPs and INDELs)
-    index=reference_genome-sample_genome
+    # only proceed if there are actually variants!
+    if VARIANT is not None:
 
-    # create a Boolean mask for fancy indexing
-    mask=numpy.isin(sample_genome.genome_index,index)
+        VARIANT['UNIQUEID']=sample_genome.name
 
-    # create the columns that are common to both SNPs and INDELs for all variants
-    VARIANT_dict['INDEX']=index
-    VARIANT_dict['GENE']=sample_genome.genome_feature_name[mask]
-    VARIANT_dict['POSITION']=sample_genome.genome_position[mask]
-    VARIANT_dict['AMINO_ACID_NUMBER']=sample_genome.genome_amino_acid_number[mask]
-    VARIANT_dict['NUCLEOTIDE_NUMBER']=sample_genome.genome_nucleotide_number[mask]
-    VARIANT_dict['IS_SNP']=sample_genome.is_snp[mask]
-    VARIANT_dict['IS_HET']=sample_genome.is_het[mask]
-    VARIANT_dict['IS_INDEL']=sample_genome.is_indel[mask]
-    VARIANT_dict['IS_NULL']=sample_genome.is_null[mask]
-    VARIANT_dict['COVERAGE']=sample_genome.coverage[mask]
-    VARIANT_dict['GT_CONF']=sample_genome.genome_sequence_metadata["GT_CONF"][mask]
-    VARIANT_dict['GT_CONF_PERCENTILE']=sample_genome.genome_sequence_metadata["GT_CONF_PERCENTILE"][mask]
-    VARIANT_dict["HET_VARIANT_0"]=sample_genome.het_variations[mask][:,0]
-    VARIANT_dict["HET_VARIANT_1"]=sample_genome.het_variations[mask][:,1]
-    VARIANT_dict["HET_COVERAGE_0"]=sample_genome.het_coverage[mask][:,0]
-    VARIANT_dict["HET_COVERAGE_1"]=sample_genome.het_coverage[mask][:,1]
-    VARIANT_dict["HET_INDEL_LENGTH_0"]=sample_genome.het_indel_length[mask][:,0]
-    VARIANT_dict["HET_INDEL_LENGTH_1"]=sample_genome.het_indel_length[mask][:,1]
-    VARIANT_dict["HET_REF"]=sample_genome.het_ref[mask]
-    VARIANT_dict["HET_ALT_0"]=sample_genome.het_alt[mask][:,0]
-    VARIANT_dict["HET_ALT_1"]=sample_genome.het_alt[mask][:,1]
+        # reorder the columns
+        VARIANT=VARIANT[['UNIQUEID','VARIANT','REF','ALT','GENOME_INDEX','GENE','ELEMENT_TYPE',"MUTATION_TYPE",'POSITION','NUCLEOTIDE_NUMBER','AMINO_ACID_NUMBER','ASSOCIATED_WITH_GENE','GT_CONF_PERCENTILE','IN_PROMOTER','IN_CDS','IS_SNP','IS_INDEL','IS_HET','IS_NULL','INDEL_LENGTH',"INDEL_1","INDEL_2","COVERAGE","HET_VARIANT_0","HET_VARIANT_1","HET_COVERAGE_0","HET_COVERAGE_1","HET_INDEL_LENGTH_0","HET_INDEL_LENGTH_1","HET_REF","HET_ALT_0","HET_ALT_1","GT_CONF"]]
 
-    # create a preliminary dataframe
-    VARIANT=pandas.DataFrame(data=VARIANT_dict)
+        # set the index
+        VARIANT.set_index(['UNIQUEID','VARIANT','IS_SNP'],inplace=True,verify_integrity=True)
 
-    print(VARIANT)
-
-    # populate the key columns
-    VARIANT[['REF','ALT','INDEL_LENGTH','VARIANT']]=VARIANT.apply(variant_infer_columns,axis=1)
-
-    VARIANT['UNIQUEID']=sample_genome.name
-
-    # define some Boolean columns for ease of analysis
-    VARIANT[["IN_PROMOTER","IN_CDS","ASSOCIATED_WITH_GENE"]]=VARIANT.apply(variant_assign_booleans,axis=1)
-
-    # reorder the columns
-    VARIANT=VARIANT[['UNIQUEID','INDEX','VARIANT','ASSOCIATED_WITH_GENE','GENE','NUMBERING','POSITION','IS_HET','IS_INDEL','IS_NULL','IS_SNP','INDEL_LENGTH','IN_PROMOTER','IN_CDS','REF','ALT','COVERAGE','GT_CONF','GT_CONF_PERCENTILE','HET_ALT_0','HET_ALT_1','HET_COVERAGE_0','HET_COVERAGE_1','HET_INDEL_LENGTH_0','HET_INDEL_LENGTH_1','HET_REF','HET_VARIANT_0','HET_VARIANT_1']]
-
-    # set the index
-    VARIANT.set_index(['UNIQUEID','VARIANT'],inplace=True,verify_integrity=True)
-
-    # save to a CSV file
-    VARIANT.to_csv(vcf_stem+"-VARIANTS.csv",header=True)
+        # save to a CSV file
+        VARIANT.to_csv(vcf_stem+"-VARIANTS.csv",header=True)
 
     if options.debug:
         print("Creating the MUTATIONS table..")
 
-    # create a dictionary
-    MUTATIONS_dict=defaultdict(str)
-
-    # these are the only three columns we can populate quickly
-    for i in ['GENE','MUTATION','ELEMENT_TYPE']:
-        MUTATIONS_dict[i]=[]
+    MUTATIONS=None
 
     for gene in reference_genome.gene_names:
 
-        # find out the mutations
-        mutations=sample_genome.genes[gene].list_mutations_wrt(reference_genome.genes[gene])
+        # find out the mutations
+        mutations=sample_genome.genes[gene].table_mutations_wrt(reference_genome.genes[gene])
 
         if mutations is not None:
 
-            number=len(mutations)
+            if MUTATIONS is not None:
+                MUTATIONS=pandas.concat([MUTATIONS,mutations])
+            else:
+                MUTATIONS=mutations
 
-            MUTATIONS_dict["GENE"]=numpy.append(MUTATIONS_dict["GENE"],number*[gene])
-            MUTATIONS_dict["MUTATION"]=numpy.append(MUTATIONS_dict["MUTATION"],mutations)
-            gene_type=reference_genome.genes[gene].gene_type
-            MUTATIONS_dict['ELEMENT_TYPE']=numpy.append(MUTATIONS_dict['ELEMENT_TYPE'],number*[gene_type])
+    if MUTATIONS is not None:
 
-    # create a preliminary dataframe
-    MUTATIONS=pandas.DataFrame(data=MUTATIONS_dict)
+        # define some Boolean columns for ease of analysis
+        MUTATIONS[['IS_SYNONYMOUS','IS_NONSYNONYMOUS','IS_HET','IS_NULL']]=MUTATIONS.apply(mutations_assign_booleans,axis=1)
 
-    # infer the remaining key columns
-    MUTATIONS[['REF','POSITION','ALT','IS_SNP','IS_INDEL','INDEL_LENGTH',"MUTATION_TYPE"]] = MUTATIONS.apply(mutations_split_mutation,axis=1)
+        # calculate the number of nucleotide changes required for this mutation
+        MUTATIONS["NUMBER_NUCLEOTIDE_CHANGES"]=MUTATIONS.apply(mutations_count_number_nucleotide_changes,axis=1)
 
-    # define some Boolean columns for ease of analysis
-    MUTATIONS[['IN_PROMOTER','IN_CDS','IS_SYNONYMOUS','IS_NONSYNONYMOUS','IS_HET','IS_NULL','IS_SNP']]=MUTATIONS.apply(mutations_assign_booleans,axis=1)
+        MUTATIONS['UNIQUEID']=sample_genome.name
 
-    # calculate the number of nucleotide changes required for this mutation
-    MUTATIONS["NUMBER_NUCLEOTIDE_CHANGES"]=MUTATIONS.apply(mutations_count_number_nucleotide_changes,axis=1)
+        MUTATIONS=MUTATIONS.astype( {'IS_SYNONYMOUS':'bool',\
+                                     'IS_NONSYNONYMOUS':'bool',\
+                                     'IS_HET':'bool',\
+                                     'IS_NULL':'bool',\
+                                     'NUMBER_NUCLEOTIDE_CHANGES':'int'})
 
-    MUTATIONS['UNIQUEID']=sample_genome.name
+        # reorder the columns
+        # MUTATIONS=MUTATIONS[["UNIQUEID","GENE","MUTATION","POSITION","SITEID","MUTATION_TYPE","ELEMENT_TYPE","AMINO_ACID_NUMBER","NUCLEOTIDE_NUMBER","IN_PROMOTER","IN_CDS","IS_SYNONYMOUS","IS_NONSYNONYMOUS","IS_HET","IS_INDEL","IS_NULL","IS_SNP","REF","ALT","NUMBER_NUCLEOTIDE_CHANGES","INDEL_LENGTH","INDEL_1","INDEL_2"]]
+        MUTATIONS=MUTATIONS[["UNIQUEID",'GENE','MUTATION','POSITION','AMINO_ACID_NUMBER','GENOME_INDEX','NUCLEOTIDE_NUMBER','REF','ALT','IS_SNP','IS_INDEL','IN_CDS','IN_PROMOTER','IS_SYNONYMOUS','IS_NONSYNONYMOUS','IS_HET','IS_NULL','ELEMENT_TYPE','MUTATION_TYPE','INDEL_LENGTH','INDEL_1','INDEL_2',"NUMBER_NUCLEOTIDE_CHANGES"]]
+        # set the index
+        MUTATIONS.set_index(["UNIQUEID","GENE",'MUTATION'],inplace=True,verify_integrity=True)
 
-    # reorder the columns
-    MUTATIONS=MUTATIONS[["UNIQUEID","GENE","MUTATION","MUTATION_TYPE","ELEMENT_TYPE","POSITION","IN_PROMOTER","IN_CDS","IS_SYNONYMOUS","IS_NONSYNONYMOUS","IS_HET","IS_INDEL","IS_NULL","IS_SNP","REF","ALT","NUMBER_NUCLEOTIDE_CHANGES"]]
+        # save to a CSV file
+        MUTATIONS.to_csv(vcf_stem+"-MUTATIONS.csv")
 
-    # set the index
-    MUTATIONS.set_index(["UNIQUEID","GENE",'MUTATION'],inplace=True,verify_integrity=True)
-
-    # save to a CSV file
-    MUTATIONS.to_csv(vcf_stem+"-MUTATIONS.csv")
-
-    MUTATIONS.reset_index(inplace=True)
+        MUTATIONS.reset_index(inplace=True)
 
     # can only infer predicted effects and ultimate phenotypes if a resistance catalogue has been supplied!
     if options.catalogue_file is not None:
