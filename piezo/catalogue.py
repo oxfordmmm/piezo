@@ -239,19 +239,34 @@ class ResistanceCatalogue(object):
                             if verbose:
                                 print("2. "+predictions[2]+" nonsyn SNP at any position in the CDS or PROM")
 
-                        # PRIORITY=100: any nonsynoymous mutation at this specific position in the CDS or PROM  (e.g. rpoB_S450? or rpoB_c-15?)
-                        row=rules.loc[rules_variant_type_vector & rules_position_vector & (before!=after) & (rules.MUTATION.str[-1]=="?")]
+                        if variant_affects in ["CDS","RNA"]:
+                            row=rules.loc[rules_variant_type_vector & (rules.MUTATION=="*Z") & (before!=after) & (mutation[-1]=="Z")]
+                        else:
+                            row=rules.loc[rules_variant_type_vector & (rules.MUTATION=="-*z") & (before!=after) & (mutation[-1]=="z")]
                         if not row.empty:
                             predictions[3]=str(row[self.catalogue_name+"_PREDICTION"].values[0])
                             if verbose:
-                                print("3. "+predictions[3]+" nonsyn SNP at specified position in the CDS")
+                                print("3. "+predictions[3]+" het SNP at any position in the CDS or PROM")
+
+                        # PRIORITY=100: any nonsynoymous mutation at this specific position in the CDS or PROM  (e.g. rpoB_S450? or rpoB_c-15?)
+                        row=rules.loc[rules_variant_type_vector & rules_position_vector & (before!=after) & (rules.MUTATION.str[-1]=="?")]
+                        if not row.empty:
+                            predictions[4]=str(row[self.catalogue_name+"_PREDICTION"].values[0])
+                            if verbose:
+                                print("4. "+predictions[4]+" nonsyn SNP at specified position in the CDS or PROM")
+
+                        row=rules.loc[rules_variant_type_vector & rules_position_vector & (before!=after) & (mutation[-1] in ["Z","z"]) &  (rules.MUTATION.str[-1].isin(["Z","z"]))]
+                        if not row.empty:
+                            predictions[5]=str(row[self.catalogue_name+"_PREDICTION"].values[0])
+                            if verbose:
+                                print("5. "+predictions[5]+" het SNP at specified position in the CDS")
 
                         # PRIORITY=1000: an exact match
                         row=rules.loc[rules_variant_type_vector & (rules.MUTATION==mutation)]
                         if not row.empty:
-                            predictions[4]=str(row[self.catalogue_name+"_PREDICTION"].values[0])
+                            predictions[6]=str(row[self.catalogue_name+"_PREDICTION"].values[0])
                             if verbose:
-                                print("4. "+predictions[4]+" exact SNP match")
+                                print("6. "+predictions[6]+" exact SNP match")
 
                     elif variant_type=="INDEL":
 

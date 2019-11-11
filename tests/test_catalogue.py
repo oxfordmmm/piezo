@@ -21,7 +21,7 @@ def test_catalogue__init__():
 
     assert resistance_catalogue.catalogue_name=="TEST"
 
-    assert resistance_catalogue.number_rows==12
+    assert resistance_catalogue.number_rows==19
 
     assert resistance_catalogue.drug_list==['DRUG_A','DRUG_B']
 
@@ -35,10 +35,19 @@ def test_catalogue_prediction_snps():
     # check a synonymous mutation has no effect
     assert resistance_catalogue.predict("M2_L73L")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
 
+    # check a row in the catalogue
+    assert resistance_catalogue.predict("M2_L73Z")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
+
     # check hitting a wildtype row
     assert resistance_catalogue.predict("M2_G74I")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
 
+    assert resistance_catalogue.predict("M2_G74Z")=={'DRUG_A': 'R', 'DRUG_B': 'S'}
+
+    assert resistance_catalogue.predict("M2_G74P")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
+
     assert resistance_catalogue.predict("M2_t-15c")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+
+    assert resistance_catalogue.predict("M2_t-15z")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
 
     # bad prediction
     with pytest.raises(Exception):
