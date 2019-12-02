@@ -2,13 +2,48 @@
 
 import os
 
-import pandas, numpy
+import pandas, numpy, ujson
 
-import gumpy
+
+
+class ResistanceCatalogue:
+
+    def __init__(self, catalogue_file):
+
+        self.catalogue = load_catalogue(catalogue_file)
+
+    def predict(gene_mutation, verbose=False):
+
+        return predict(self.catalogue, gene_mutation, verbose=verbose)
+
+
+
+
+def parse_json(data):
+
+    return ujson.loads(data)
+
+
+def load_catalogue(catalogue_file):
+
+    assert os.path.isfile(catalogue_file), "supplied catalogue file "+catalogue_file+" does not exist!"
+
+    resistance_catalogue=pandas.read_csv(catalogue_file,converters={'OTHER':parse_json})
+
+    assert len(resistance_catalogue.GENBANK_REFERENCE.unique())==1, "multiple genbank references specified in catalogue!"
+
+    assert len(resistance_catalogue.CATALOGUE_MODEL.unique())==1, "multiple catalogue models used in the catalogue!"
+
+
+
+def predict(catalogue_model="GM3_RSU",mutation):
+
+
+
 
 class ResistanceCatalogue(object):
 
-    def __init__(self,input_file=None,catalogue_name=None,gumpy_genome=None):
+    def __init__(self,input_file=None,catalogue_name=None):
 
         '''
         Instantiate a ResistanceCatalogue
@@ -16,16 +51,11 @@ class ResistanceCatalogue(object):
         Args:
             input_file (str): path to a resistance catalogue as a CSV file
             catalogue_name (str): the name of the catalogue e.g. NEJM2018
-            gumpy_genome (object): a Gumpy genome object of the reference
         '''
 
         self.catalogue_name=catalogue_name
 
 
-        # instantiate a gemucator instance using the same GenBank file so we can validate the mutations later on
-        # self.reference_genome=gemucator(genbank_file=os.path.abspath(genbank_file))
-        # self.reference_genome=gumpy.Genome(genbank_file=os.path.abspath(genbank_file),show_progress_bar=True,name="H37rV_v3")
-        self.reference_genome=gumpy_genome
 
         # read in the catalogue file
         self._parse_catalogue_file(input_file)
@@ -59,8 +89,6 @@ class ResistanceCatalogue(object):
 
         catalogue_version=self.resistance_catalogue.GENBANK_REFERENCE.unique()[0]
 
-        assert catalogue_version==self.reference_genome.id, "Catalogue uses version "+catalogue_version+" whilst genbank file is version "+self.reference_genome.id+" !!"
-
         # only pull out genes which have at least one R row
         relevant_genes=self.resistance_catalogue.loc[self.resistance_catalogue[self.catalogue_name+"_PREDICTION"].isin(['S','U','R'])].GENE.unique()
 
@@ -80,9 +108,6 @@ class ResistanceCatalogue(object):
 
         # iterate through the gene names
         for gene_name in self.resistance_catalogue.GENE.unique():
-
-            # be defensive and check this gene exists in our reference
-            assert self.reference_genome.contains_gene(gene_name), gene_name+" does not exist in the supplied GenBank file!"
 
             # select the rows matching this gene where a drug is specified
             tmp=self.resistance_catalogue.loc[(self.resistance_catalogue.GENE==gene_name) & (~self.resistance_catalogue.DRUG.isna())]
@@ -119,14 +144,13 @@ class ResistanceCatalogue(object):
         for i in foo['MUTATION']:
             self.gene_panel[i[0]]=i[1]
 
-    def predict(self,gene_mutation=None,verbose=False,validate=True):
+    def predict(self,gene_mutation=None,verbose=False):
         '''
         Predict the effect of the given mutation on one or more antimicrobials.
 
         Args:
             mutation (str): a genetic variant in the form GENE_MUTATION e.g. for a SNP katG_S315T, INDEL katG_315_indel.
             verbose (bool): if True, then a description of the rules that apply to the supplied mutation and their priority is written to STDOUT (default=False)
-            validate (bool): if True, then the supplied mutation is validated against the GenBank file. Only set to False if the mutation is being supplied from a trusted source and you know what you are doing! (default=True)
 
         Returns:
             result (dict): the drugs affected by the mutation are the keys, and the predicted phenotypes are the values. e.g. {'LEV':'R', 'MXF':'R'}
@@ -147,14 +171,6 @@ class ResistanceCatalogue(object):
 
         # ..and the remainder is the mutation
         mutation=gene_mutation.split(gene_name+"_")[1]
-
-
-        if validate:
-            # check that the gene exists in the reference genome!
-            assert self.reference_genome.contains_gene(gene_name), gene_name+" does not exist in the specified GENBANK file!"
-
-            # also check that the supplied mutation is valid given the reference genome
-            assert self.reference_genome.valid_gene_mutation(gene_mutation), "gene exists but "+gene_mutation+" is badly formed; check the reference amino acid or nucleotide!"
 
         # parse the mutation to work out what type of mutation it is, where it acts etc
         (position,variant_affects,variant_type,indel_type,indel_length,indel_bases,before,after)=self._parse_mutation(gene_mutation)
