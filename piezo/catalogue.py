@@ -1,10 +1,22 @@
 #! /usr/bin/env python
 
 import os
+import collections
 
 import pandas, numpy, ujson
 
 
+GM_catalogue = collections.namedtuple('GM_catalogue',
+                                    [ 'genbank_reference',
+                                      'name',
+                                      'version',
+                                      'values',
+                                      'drugs',
+                                      'genes',
+                                      'drugs_affected_by',
+                                      'genes_affected_by',
+                                      'dataframe' ]
+                                    )
 
 class ResistanceCatalogue:
 
@@ -28,15 +40,152 @@ def load_catalogue(catalogue_file):
 
     assert os.path.isfile(catalogue_file), "supplied catalogue file "+catalogue_file+" does not exist!"
 
-    resistance_catalogue=pandas.read_csv(catalogue_file,converters={'OTHER':parse_json})
+    dataframe=pandas.read_csv(catalogue_file,converters={'OTHER':parse_json,'EVIDENCE':parse_json,'SOURCE':parse_json})
 
-    assert len(resistance_catalogue.GENBANK_REFERENCE.unique())==1, "multiple genbank references specified in catalogue!"
+    assert len(dataframe.GENBANK_REFERENCE.unique())==1, "multiple genbank references specified in catalogue!"
+    genbank_reference=dataframe.unique()[0]
 
-    assert len(resistance_catalogue.CATALOGUE_MODEL.unique())==1, "multiple catalogue models used in the catalogue!"
+    assert len(dataframe.CATALOGUE_NAME.unique())==1, "multiple catalogue models used in the catalogue!"
+    name=dataframe.CATALOGUE_NAME.unique()[0]
+
+    assert len(dataframe.CATALOGUE_VERSION.unique())==1, "multiple catalogue models used in the catalogue!"
+    version=dataframe.CATALOGUE_VERSION.unique()[0]
+
+    assert len(dataframe.CATALOGUE_GRAMMAR.unique())==1, "multiple grammars used in the catalogue!"
+    grammar=dataframe.CATALOGUE_GRAMMAR.unique()[0]
+
+    assert len(dataframe.CATALOGUE_VALUES.unique())==1, "multiple grammar value types used in the catalogue!"
+    values=dataframe.CATALOGUE_VALUES.unique()[0]
+    if values in ['RS','RUS','RFUS']:
+        values=[i for i in dataframe.CATALOGUE_VALUES.unique()[0]]
+    else:
+        raise ValueError("content of column CATALOGUE_VALUES not recognised!")
+
+    # find out the DRUGS that this catalogue applies to
+    catalogue_drugs=list(dataframe.DRUG.unique())
+
+    if grammar!="GENE_MUTATION":
+
+        raise ValueError("only the GENE_MUTATION grammar is supported at present!")
+
+    elif grammar=="GENE_MUTATION":
+
+        def split_mutation(row):
+
+            # split the supplied mutation on _ which separates the components
+            components=row['MUTATION'].split("_")
+
+            # the gene name is always the first component
+            gene=components[0]
+
+            # ..and the remainder is the mutation
+            mutation=gene_mutation.split(gene+"_")[1]
+
+            return(pandas.Series[[gene,mutation]])
+
+        dataframe[['GENE','MUTATION']]=dataframe.apply(split_mutation,axis=1)
+
+        genes=list(dataframe.GENE.unique())
+
+        genes_affected_by={}
+        drugs_affected_by={}
+
+        for gene_name in genes:
+
+            df=dataframe.loc[dataframe.GENE==gene_name]
+
+            drugs_affected_by[gene_name]=list(df.DRUG.unique())
+
+        for drug_name in drugs:
+
+            df=dataframe.loc[dataframe.DRUG==drug_name]
+
+            genes_affected_by[drug_name]=list(df.GENE.unique())
 
 
+        return ResistanceCatalogue(genbank_reference,
+                               name,
+                               version,
+                               grammar,
+                               values,
+                               drugs,
+                               genes,
+                               drugs_affected_by,
+                               genes_affected_by
+                               dataframe)
 
-def predict(catalogue_model="GM3_RSU",mutation):
+def predict(grammar="GENE_MUTATION",gene,mutation):
+
+    if grammar=="GENE_MUTATION":
+
+        result = predict_GENE_MUTATION(gene,mutation)
+
+        return(result)
+
+    else:
+
+        raise ValueError("Only the GENE_MUTATION grammar is supported at present")
+
+
+def predict_GENE_MUTATION(gene,mutation):
+
+    # parse the mutation to work out what type of mutation it is, where it acts etc
+    (position, variant_affects, variant_type, indel_type, indel_length, indel_bases, before, after) = parse_GENE_MUTATION(gene,mutation)
+
+    # insist we've been given an amino acid or a wildcard only
+    if variant_type=="SNP":
+        assert after in ['a','c','t','g','x','z','?',"!",'A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not an amino acid or base!"
+        assert before in ['a','c','t','g','x','z','?','!','A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], before+" is not an amino acid or base!"
+
+    if gene.
+
+def parse_GENE_MUTATION(gene,mutation):
+
+    variant_type=None
+    variant_affects=None
+    position=None
+    indel_type=None
+    indel_length=None
+    indel_bases=None
+    before=None
+    after=None
+
+    cols=mutation.split("_")
+
+    if len(cols)==1:
+
+        variant_type="SNP"
+
+        position=int(mutation[1:-1])
+        if position<0:
+            variant_affects="PROM"
+        else:
+            variant_affects="CDS"
+
+        before=mutation[0]
+        after=mutation[-1]
+
+    elif len(cols) in [2,3]:
+        variant_type="INDEL"
+
+        position=int(cols[0])
+        if position<0:
+            variant_affects="PROM"
+        else:
+            variant_affects="CDS"
+
+        # the third element is one of indel, ins, del or the special case fs
+        indel_type=cols[1]
+
+        # if there is a fourth and final element to an INDEL it is either _4 or _ctgc
+        if len(cols)==3:
+            if cols[2].isnumeric():
+                indel_length=int(cols[2])
+            else:
+                indel_length=len(cols[2])
+                indel_bases=cols[3]
+
+    return(position, variant_affects, variant_type, indel_type, indel_length, indel_bases, before, after)
 
 
 
