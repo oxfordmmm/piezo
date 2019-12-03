@@ -19,6 +19,7 @@ catalogue = collections.namedtuple('catalogue',
                                       'genes',
                                       'drug_lookup',
                                       'gene_lookup',
+                                      'number_rows',
                                       'rules' ]
                                     )
 class ResistanceCatalogue:
@@ -67,6 +68,8 @@ def load_catalogue(catalogue_file):
     assert len(rules.CATALOGUE_GRAMMAR.unique())==1, "multiple grammars found in the catalogue!"
     grammar=rules.CATALOGUE_GRAMMAR.unique()[0]
 
+    number_rows=len(rules)
+
     assert len(rules.PREDICTION_VALUES.unique())==1, "multiple grammar value types used in the catalogue!"
     values=rules.PREDICTION_VALUES.unique()[0]
     if values in ['RS','RUS','RFUS']:
@@ -102,6 +105,7 @@ def load_catalogue(catalogue_file):
                            genes,
                            drug_lookup,
                            gene_lookup,
+                           number_rows,
                            rules)
 
 def predict(catalogue,mutation,verbose):
