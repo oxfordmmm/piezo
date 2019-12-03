@@ -17,7 +17,6 @@ setup(
     install_requires=[
         "numpy >= 1.13",
         "pandas >= 0.23.1",
-        "gumpy  >= 0.1"
     ],
     license='University of Oxford, see LICENSE.md',
     scripts=['bin/piezo-predict.py'],

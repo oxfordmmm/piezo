@@ -1,9 +1,6 @@
 pandas
 numpy
-h5py
-pysam
-biopython
+ujson
 tqdm
 pytest
 pytest-cov
-gumpy
