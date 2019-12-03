@@ -1,9 +1,6 @@
 #! /usr/bin/env python
 
-import os
-import collections
-
-import pandas, numpy, ujson
+import pandas
 
 def split_mutation(row):
 
@@ -44,7 +41,7 @@ def split_mutation(row):
                 if position[0]=="-":
                     mutation_affects="PROM"
             except:
-                print(position)
+                pass
 
     else:
         raise ValueError("badly formed mutation: "+row["MUTATION"])
@@ -53,29 +50,47 @@ def split_mutation(row):
 
 
 def process_catalogue_GM1(rules,drugs):
+    '''
+    For the GM1 grammar, add some additional columns to the rules dataframe that can be inferred from the mutation.
 
+    Args:
+        rules (dataframe): Pandas dataframe of the AMR catalogue in the general form
+        drugs (list): list of drugs in the AMR catalogue
+
+    '''
+
+    # infer these columns
     rules[['GENE','MUTATION','POSITION','MUTATION_AFFECTS','MUTATION_TYPE']]=rules.apply(split_mutation,axis=1)
 
+    # create a list of the genes mentioned in the catalogue
     genes=list(rules.GENE.unique())
 
+    # create a dictionary where the genes are keys and the entries tell which drugs are affected
     gene_lookup={}
-    drug_lookup={}
-
     for gene_name in genes:
-
         df=rules.loc[rules.GENE==gene_name]
-
         gene_lookup[gene_name]=list(df.DRUG.unique())
 
+    # create a dictionary where the drugs are keys and the entries tell which genes are affected
+    drug_lookup={}
     for drug_name in drugs:
-
         df=rules.loc[rules.DRUG==drug_name]
-
         drug_lookup[drug_name]=list(df.GENE.unique())
 
     return(rules,genes,drug_lookup,gene_lookup)
 
 def predict_GM1(catalogue,gene_mutation,verbose):
+    '''
+    For the GM1 grammar, predict the effect of the supplied gene_mutation.
+
+    Args:
+        catalogue (named tuple): defines the resistance catalogue
+        gene_mutation (str): as specified by the GM1 grammar, e.g. rpoB_S450L, fabG1_c-15t, ahpC_128_indel
+        verbose (bool): whether to be loud
+
+    Returns:
+        result: is either a dict with the drugs as keys, or "S" if there are no hits in the catalogue
+    '''
 
     components=gene_mutation.split("_")
 
@@ -83,7 +98,7 @@ def predict_GM1(catalogue,gene_mutation,verbose):
     mutation=gene_mutation.split(gene+"_")[1]
 
     # parse the mutation to work out what type of mutation it is, where it acts etc
-    (position, mutation_affects, mutation_type, indel_type, indel_length, indel_bases, before, after) = parse_mutation_GM1(gene,mutation)
+    (position, mutation_affects, mutation_type, indel_type, indel_length, indel_bases, before, after) = parse_mutation(gene,mutation)
 
     # if the gene isn't in the catalogue, then assume it has no effect
     if gene not in catalogue.genes:
@@ -122,11 +137,11 @@ def predict_GM1(catalogue,gene_mutation,verbose):
             subset_mutation_type_vector=(subset_rules.MUTATION_TYPE==mutation_type)
 
             if mutation_type=="SNP":
-                process_snp_variants(mutation_affects, predictions, catalogue, before, after, mutation, subset_rules,\
+                process_snp_variants(mutation_affects, predictions, before, after, mutation, subset_rules,\
                                     subset_mutation_type_vector, subset_position_vector, verbose)
             elif mutation_type=="INDEL":
                 process_indel_variants(mutation_affects,
-                       predictions, catalogue, before, after, mutation, subset_rules, subset_mutation_type_vector,
+                       predictions, before, after, subset_rules, subset_mutation_type_vector,
                        subset_position_vector, indel_length, indel_type, indel_bases, position, verbose)
 
         if not predictions:
@@ -140,19 +155,22 @@ def predict_GM1(catalogue,gene_mutation,verbose):
 
 
 def row_prediction(row, predictions, priority, message):
+    assert len(row) in [0,1], "hitting more than one row in the catalogue!"
     if not row.empty:
         predictions[priority] = str(row["PREDICTION"].values[0])
 
 
 def process_snp_variants(mutation_affects,
                          predictions,
-                         catalogue,
                          before, after,
                          mutation,
                          rules,
                          rules_mutation_type_vector,
                          rules_position_vector,
                          verbose):
+    '''
+    Apply the cascading rules for SNPs, according to the GM1 grammar.
+    '''
 
     if before==after:
 
@@ -193,9 +211,7 @@ def process_snp_variants(mutation_affects,
 
 def process_indel_variants(mutation_affects,
                            predictions,
-                           catalogue,
                            before, after,
-                           mutation,
                            rules,
                            rules_mutation_type_vector,
                            rules_position_vector,
@@ -204,6 +220,10 @@ def process_indel_variants(mutation_affects,
                            indel_bases,
                            position,
                            verbose):
+
+    '''
+    Apply the cascading rules for INDELs, according to the GM1 grammar.
+    '''
 
     # PRIORITY 1: any insertion or deletion in the CDS or PROM (e.g. rpoB_*_indel or rpoB_-*_indel)
     if mutation_affects == "CDS":
@@ -258,8 +278,27 @@ def process_indel_variants(mutation_affects,
         row_prediction(row, predictions, 9, "an insertion of a specified series of nucleotides at a position in the CDS or PROM (e.g. rpoB_1300_ins_ca)")
 
 
-def parse_mutation_GM1(gene,mutation):
+def parse_mutation(gene,mutation):
 
+    """
+    Take a GENE_MUTATION, and determine what type it is, what it affects etc
+
+    Args:
+        mutation (str): in the gene_mutation form as defined by GARC e.g. rpoB_S450L or rpoB_1300_ins_3
+
+    Returns:
+        position (str): the position of the mutation. This is the amino acid number in a protein, or the number of the nucleotide in the promoter, or a wildcard like '*' or '-*'
+        mutation_affects (str): whether this mutation affects the promoter (PROM) or coding sequence (CDS)
+        mutation_type (str): is it a SNP or an INDEL?
+        indel_type (str): indel, ins, del or fs
+        indel_length (int): if sufficient information is given, the number of bases in the INDEL
+        indel_bases (str): if sufficient information is given, the bases in the INDEL
+        before (str): the REF amino acid
+        after (str): the ALT amino acid
+
+    """
+
+    # set default values
     mutation_type=None
     mutation_affects=None
     position=None
@@ -269,8 +308,10 @@ def parse_mutation_GM1(gene,mutation):
     before=None
     after=None
 
+    # split the mutation on underscore
     cols=mutation.split("_")
 
+    # infer what type it is depending on how many elements it contains
     if len(cols)==1:
 
         mutation_type="SNP"
@@ -285,6 +326,7 @@ def parse_mutation_GM1(gene,mutation):
         after=mutation[-1]
 
     elif len(cols) in [2,3]:
+
         mutation_type="INDEL"
 
         position=int(cols[0])
@@ -300,27 +342,28 @@ def parse_mutation_GM1(gene,mutation):
 
         # if there is a fourth and final element to an INDEL it is either _4 or _ctgc
         if len(cols)==3:
+            assert indel_type in ['ins','del'], "form of indel does not make sense when length or bases specified!: "+indel_type
             try:
                 indel_length=int(cols[2])
-                print("foo",indel_length)
             except:
                 indel_length=len(cols[2])
                 indel_bases=cols[2]
                 assert 0 not in [c in ['a','t','c','g','z','x'] for c in indel_bases], "only nucleotides of a,t,c,g,z,x are allowed!"
 
-    assert indel_length>0, "makes no sense to have a negative indel length! "+cols[2]
+            assert indel_length>0, "makes no sense to have a negative indel length! "+cols[2]
+
     assert mutation_type in ['INDEL','SNP'], "form of mutation_type not recognised: "+mutation_type
 
     # insist we've been given an amino acid or a wildcard only
     if mutation_type=="SNP":
-        assert after in ['a','c','t','g','x','z','?',"!",'A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not an amino acid or base!"
-        assert before in ['a','c','t','g','x','z','?','!','A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], before+" is not an amino acid or base!"
+        assert after in ['a','c','t','g','x','z','?',"!",'A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not a recognised amino acid or base!"
+        assert before in ['a','c','t','g','?','!','A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y'], before+" is not a recognised amino acid or base!"
 
     if mutation_type=="SNP":
         if before.islower():
             assert after.islower(), "nucleotides must be lowercase!"
             assert before!=after, "makes no sense for the nucleotide to be the same in a mutation!"
         elif before.isupper():
-            assert after.isupper(), "amino acids must be UPPERCASE!"
+            assert after.isupper() or after=="!", "amino acids must be UPPERCASE!"
 
     return(position, mutation_affects, mutation_type, indel_type, indel_length, indel_bases, before, after)

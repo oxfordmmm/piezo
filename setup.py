@@ -20,6 +20,6 @@ setup(
         "gumpy  >= 0.1"
     ],
     license='University of Oxford, see LICENSE.md',
-    scripts=['bin/piezo-vcf-parse.py'],
+    scripts=['bin/piezo-predict.py'],
     zip_safe=False
 )
