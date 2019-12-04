@@ -2,38 +2,65 @@
 
 # piezo
 
-Takes a Clockwork VCF, a Genetic Catalogue and the associated GenBank file and predicts the effect on the relevant antibiotics. This code was developed as part of the [CRyPTIC](http://www.crypticproject.org) international tuberculosis consortium. If you would like to use the software commercially, please consult the LICENCE file.
+Predict the effect of a genetic mutation on the effect of an antibiotic using a supplied AMR catalogue. 
+
+This code was developed as part of the [CRyPTIC](http://www.crypticproject.org) international tuberculosis consortium. If you would like to use the software commercially, please consult the LICENCE file.
+
+# Design of AMR catalogue
+
+`piezo` is written so as to be extendable in the future to other ways of describing genetic variation with respect to a reference. It includes the concept of a `grammar` which specifies how the genetic variation is described. 
+
+At present only a single grammar, `GARC1` is supported. `GARC` is short for Grammar for Antimicrobial Resistance Catalogues. This grammar is described in more detail [elsewhere](http://fowlerlab.org/2018/11/25/goarc-a-general-ontology-for-antimicrobial-resistance-catalogues/), however in brief, it is a gene-centric view (and therefore has no way of describing genetic variation that lies outside a coding region, other than as a 'promoter' mutation). All mutations use `_` as a field separator and start with the gene (or locus) name which must match the name of a gene (or locus) in the relevant GenBank file. It is the user's responsibility to ensure this, although e.g. the `gumpy` package can be used to perform such sanity checks. All variation is described as either a `SNP` or an `INDEL`. If they occur within a coding region `SNP`s are specified by their effect on the amino acids which are always in UPPERCASE e.g. `rpoB_S450L`. If in the assumed promoter region, then the nucleotide change and position is specified e.g. `fabG1_c-15t`. Nucleotides are always in lowercase. `INDEL`s can be specified at different levels of granularity e.g. `rpoB_1250_indel` means 'any insertion of deletion at this position', but we could equally be highly specific and say `rpoB_1250_ins_cta` which means 'an insertion of cta at this position'. There is also the special case of frameshifting mutations which are described by `fs`.
+
+Wildcards are also supported. Hence `rpoB_*?` means 'any non-synoymous mutation in the coding region of the protein'. To avoid confusion the stop codon is represented by `!` which is non-standard. Het calls are, at present, represented by a `Z` or `z` depending on whether they occur in the coding or promoter regions. This may be extended in the future. Likewise null calls are represented by an `X` or `x`. 
+
+The general principle is each mutation can 'hit' multiple rules in the catalogue, but it is the most specific rule that will be followed. Hence consider a toy example, again from TB
+
+```
+rpoB_*?     RIF   U   any non-synoymous mutation in the coding region has an unknown effect of RIF
+rpoB_S450?  RIF   R   any non-synoymous mutation at Ser450 confers resistance
+rpoB_S450Z  RIF   F   a het call at Ser450 should be reported as an F (fail).
+```
 
 ## Example
 
-A demonstration can be found in the piezo-vcf-parse.py script in the bin/ folder of the repository which following installation should be in your $PATH.
+A demonstration script called `piezo-predict.py` can be found in the `bin/` folder of the repository which following installation should be in your `$PATH`. A made-up catalogue for testing purposes can be found in `tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv` which is based on the Human metapneumovirus, however the entries are fictious. It contains two drugs and a series of mutations in the *M2* gene.
 
 ```
-# setup a catalogue
-cat=piezo.ResistanceCatalogue(input_file="config/NEJM2018-RSU-catalogue-H37rV_v3.csv",
-                              genome_object="config/H37rV_v3.gbk",
-                              catalogue_name="NEJM2018")
+$ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv --mutation M2_L73L
+{'DRUG_B': 'S', 'DRUG_A': 'S'}
 
-# use the predict method
-print(cat.predict(gene_mutation='rpoB_S450L'))
+$ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv --mutation M2_L73R
+{'DRUG_A': 'R', 'DRUG_B': 'U'}
 
-{'RIF': 'R'}
+$ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv --mutation M2_L73Z
+{'DRUG_B': 'S', 'DRUG_A': 'F'}
+
+$ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv --mutation M2_300_indel
+{'DRUG_B': 'U', 'DRUG_A': 'U'}
+
+$ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv --mutation M2_300_ins
+{'DRUG_B': 'U', 'DRUG_A': 'U'}
+
+$ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv --mutation M2_300_ins_2
+{'DRUG_B': 'U', 'DRUG_A': 'U'}
+
+$ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv --mutation M2_300_ins_3
+{'DRUG_A': 'U', 'DRUG_B': 'R'}
+
+$ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv --mutation M2_300_ins_4
+{'DRUG_B': 'U', 'DRUG_A': 'U'}
+
+$ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv --mutation M2_300_ins_cta
+{'DRUG_B': 'R', 'DRUG_A': 'U'}
 ```
-
 ## Pre-requisites
 
-Everything is Python3. The only non-standard pre-requisite is [gumpy](https://github.com/philipwfowler/gumpy), which is on pypi so should install automagickally anywhere, but you could always clone and install it first... Previously the package relied on [snpit](https://github.com/philipwfowler/snpit), [datreant](https://datreant.readthedocs.io/en/latest/), [gemucator](https://github.com/philipwfowler/gemucator) and [vasta](https://github.com/philipwfowler/vasta). SNPIT is specific to TB so has been removed. Users may not wish to use Datreant (although I recommend it) so its functionality has gone into upstream code and the functionality of the last two has been rolled into gumpy.
-
-Everything else is fairly standard / should be installed by the `setup.py` if you don't already have it
+Everything is Python3. Everything else is fairly standard / should be installed by the `setup.py` if you don't already have it
 * pandas
-* numpy
-* h5py
-* pysam
-* biopython
-* tqdm
+* ujson
 * pytest
 * pytest-cov
-
 
 ## Installation
 
@@ -45,50 +72,10 @@ $ ls
 $ python setup.py develop --user
 ```
 
-If you've done prerequisites 1 and 2, it hopefully will just work...
-
 ## Included files
 
 ```
-$ ls config/
-NC_004148.2.gbk                         LID2015-RSU-catalogue-H37rV_v2.csv
-H37rV_v3.gbk                            NEJM2018-RSU-catalogue-H37rV_v3.csv
-H37rV_v3.pkl.gz                         CRYPTICv1.0-RSU-catalogue-H37rV_v3.csv
-NC_004148.2_RSU_catalogue.csv
+$ $ ls tests/test-catalogue/
+NC_004148.2.gbk                    NC_004148.2_TEST_GM1_RFUS_v1.0.csv
 ```
-NC_004148 is the reference genome of the human metapneumovirus and is used primarily for unit testing since it is small and fast to parse. The other catalogues are based on these papers
-
-Walker TM, Kohl TA, Omar S V, Hedge J, Del Ojo Elias C, et al. Whole-genome sequencing for prediction of Mycobacterium tuberculosis drug susceptibility and resistance: a retrospective cohort study. Lancet Infec Dis 2015;15:1193–202. [https://doi.org/10.1016/S1473-3099(15)00062-6](doi:10.1016/S1473-3099(15)00062-6
-
-The CRyPTIC Consortium, 100000 Genomes Project. Prediction of Susceptibility to First-Line Tuberculosis Drugs by DNA Sequencing. N Engl J Med 2018;379:1403–1415. [http://doi.org/10.1056/NEJMoa1800474](doi:10.1056/NEJMoa1800474)
-
-are included in `config/`. The first is only relevant when used alongside version 2 of the H37rV GenBank catalogue and the second with version 3 (it will fail if you try using the wrong version since some of the genes are renamed and shifted). The CRYPTICv1.0 catalogue is an amalgam of the above two, with respect to version 3 of the H37rV TB reference genome.
-
-2. H37rV GenBank files
-
-Only version 3 is included which is the current version and was only released in Dec 2017. CRyPTIC is using version 3.
-
-## End-to-end example
-
-In the `piezo` folder there is are several VCF files in e.g. `examples/01/01.vcf` and `examples/02/02.vcf`. To analyse it run this command
-
-```
-$ piezo-vcf-parse.py  --vcf_file examples/01/01.vcf\
-                      --genome_object config/H37rV_v3.pkl.gz\
-                      --catalogue_file config/NEJM2018-RSU-catalogue-H37rV_v3.csv\
-                      --catalogue_name NEJM2018\
-                      --ignore_vcf_filter\
-                      --ignore_vcf_status\
-                      --progress
-```
-
-These two VCF files were produced with an early version of Clockwork which didn't use the `FILTER` and `PASS` fields in the VCF format, hence the flags.
-
-You should see a series of lines written to STDOUT with the high-level predictions (In this case the sample is resistant to all four drugs in the NEJM2018 catalogue). In addition, two CSVs are written here
-
-```
-$ ls examples/01/
-01-effects.csv   01-mutations.csv  01-variants.csv  01.vcf
-```
-
-The variants CSV has one row per single nucleotide polymorphism or insertion/deletion. The mutations CSV is one row per amino acid mutation, where appropriate, and therefore usually has fewer rows than the variants CSV, whereas the effects CSV is one row per mutation per drug with the associated predicted phenotype listed. Hence the later is usually a little longer than the former, since some mutations confer effects on multiple drugs.
+NC_004148 is the reference genome of the human metapneumovirus and is used primarily for unit testing since it is small and fast to parse. 
