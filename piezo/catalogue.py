@@ -5,8 +5,8 @@ import collections
 
 import pandas, ujson
 
-from piezo.grammar_GM1 import predict_GM1
-from piezo.grammar_GM1 import process_catalogue_GM1
+from piezo.grammar_GARC1 import predict_GARC1
+from piezo.grammar_GARC1 import process_catalogue_GARC1
 
 # define the named tuple that will specify a resistance catalogue
 catalogue = collections.namedtuple('catalogue',
@@ -88,13 +88,13 @@ def load_catalogue(catalogue_file):
     # find out the DRUGS that this catalogue applies to
     drugs=list(rules.DRUG.unique())
 
-    if grammar!="GM1":
+    if grammar!="GARC1":
 
         raise ValueError("only the GENE_MUTATION grammar is supported at present!")
 
-    elif grammar=="GM1":
+    elif grammar=="GARC1":
 
-        (rules,genes,drug_lookup,gene_lookup)=process_catalogue_GM1(rules,drugs)
+        (rules,genes,drug_lookup,gene_lookup)=process_catalogue_GARC1(rules,drugs)
 
     return catalogue(genbank_reference,
                            name,
@@ -127,12 +127,12 @@ def predict(catalogue,mutation,verbose):
         * for more info see the walkthrough and also the NOMENCLATURE.md file
     '''
 
-    if catalogue.grammar=="GM1":
+    if catalogue.grammar=="GARC1":
 
-        result = predict_GM1(catalogue,mutation,verbose)
+        result = predict_GARC1(catalogue,mutation,verbose)
 
         return(result)
 
     else:
 
-        raise ValueError("Only the GENE_MUTATION grammar is supported at present")
+        raise ValueError("Only the GENE_MUTATION GARC1 grammar is supported at present")

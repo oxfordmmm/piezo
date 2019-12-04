@@ -2,7 +2,7 @@ import pytest
 
 import piezo
 
-test=piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_GM1_RFUS_v1.0.csv")
+test=piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv")
 
 def test_catalogue__init__():
 
@@ -14,7 +14,7 @@ def test_catalogue__init__():
 
     assert test.catalogue.values==["R","F","U","S"]
 
-    assert test.catalogue.grammar=="GM1"
+    assert test.catalogue.grammar=="GARC1"
 
     assert test.catalogue.number_rows==20
 

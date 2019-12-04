@@ -49,9 +49,9 @@ def split_mutation(row):
     return(pandas.Series([gene,mutation,position,mutation_affects,mutation_type]))
 
 
-def process_catalogue_GM1(rules,drugs):
+def process_catalogue_GARC1(rules,drugs):
     '''
-    For the GM1 grammar, add some additional columns to the rules dataframe that can be inferred from the mutation.
+    For the GARC1 grammar, add some additional columns to the rules dataframe that can be inferred from the mutation.
 
     Args:
         rules (dataframe): Pandas dataframe of the AMR catalogue in the general form
@@ -79,13 +79,13 @@ def process_catalogue_GM1(rules,drugs):
 
     return(rules,genes,drug_lookup,gene_lookup)
 
-def predict_GM1(catalogue,gene_mutation,verbose):
+def predict_GARC1(catalogue,gene_mutation,verbose):
     '''
-    For the GM1 grammar, predict the effect of the supplied gene_mutation.
+    For the GARC1 grammar, predict the effect of the supplied gene_mutation.
 
     Args:
         catalogue (named tuple): defines the resistance catalogue
-        gene_mutation (str): as specified by the GM1 grammar, e.g. rpoB_S450L, fabG1_c-15t, ahpC_128_indel
+        gene_mutation (str): as specified by the GARC1 grammar, e.g. rpoB_S450L, fabG1_c-15t, ahpC_128_indel
         verbose (bool): whether to be loud
 
     Returns:
@@ -169,7 +169,7 @@ def process_snp_variants(mutation_affects,
                          rules_position_vector,
                          verbose):
     '''
-    Apply the cascading rules for SNPs, according to the GM1 grammar.
+    Apply the cascading rules for SNPs, according to the GARC1 grammar.
     '''
 
     if before==after:
@@ -222,7 +222,7 @@ def process_indel_variants(mutation_affects,
                            verbose):
 
     '''
-    Apply the cascading rules for INDELs, according to the GM1 grammar.
+    Apply the cascading rules for INDELs, according to the GARC1 grammar.
     '''
 
     # PRIORITY 1: any insertion or deletion in the CDS or PROM (e.g. rpoB_*_indel or rpoB_-*_indel)
@@ -317,10 +317,8 @@ def parse_mutation(gene,mutation):
         mutation_type="SNP"
 
         position=int(mutation[1:-1])
-        if position<0:
-            mutation_affects="PROM"
-        else:
-            mutation_affects="CDS"
+
+        mutation_affects=infer_mutation_affects(position)
 
         before=mutation[0]
         after=mutation[-1]
@@ -330,10 +328,8 @@ def parse_mutation(gene,mutation):
         mutation_type="INDEL"
 
         position=int(cols[0])
-        if position<0:
-            mutation_affects="PROM"
-        else:
-            mutation_affects="CDS"
+
+        mutation_affects=infer_mutation_affects(position)
 
         # the third element is one of indel, ins, del or the special case fs
         indel_type=cols[1]
@@ -356,14 +352,25 @@ def parse_mutation(gene,mutation):
 
     # insist we've been given an amino acid or a wildcard only
     if mutation_type=="SNP":
-        assert after in ['a','c','t','g','x','z','?',"!",'A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not a recognised amino acid or base!"
-        assert before in ['a','c','t','g','?','!','A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y'], before+" is not a recognised amino acid or base!"
-
-    if mutation_type=="SNP":
-        if before.islower():
-            assert after.islower(), "nucleotides must be lowercase!"
-            assert before!=after, "makes no sense for the nucleotide to be the same in a mutation!"
-        elif before.isupper():
-            assert after.isupper() or after=="!", "amino acids must be UPPERCASE!"
+        sanity_check_snp()
 
     return(position, mutation_affects, mutation_type, indel_type, indel_length, indel_bases, before, after)
+
+def infer_mutation_affects(position):
+
+    if position<0:
+        mutation_affects="PROM"
+    else:
+        mutation_affects="CDS"
+    return(mutation_affects)
+
+def sanity_check_snp(before,after):
+
+    assert after in ['a','c','t','g','x','z','?',"!",'A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not a recognised amino acid or base!"
+    assert before in ['a','c','t','g','?','!','A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y'], before+" is not a recognised amino acid or base!"
+
+    if before.islower():
+        assert after.islower(), "nucleotides must be lowercase!"
+        assert before!=after, "makes no sense for the nucleotide to be the same in a mutation!"
+    elif before.isupper():
+        assert after.isupper() or after=="!", "amino acids must be UPPERCASE!"
