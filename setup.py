@@ -15,8 +15,7 @@ setup(
         "Operating System :: OS Independent"  ],
     python_requires='>=3.5',
     install_requires=[
-        "numpy >= 1.13",
-        "pandas >= 0.23.1",
+        "pandas >= 0.23.1"
     ],
     license='University of Oxford, see LICENSE.md',
     scripts=['bin/piezo-predict.py'],

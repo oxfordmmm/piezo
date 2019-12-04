@@ -1,6 +1,4 @@
 pandas
-numpy
 ujson
-tqdm
 pytest
 pytest-cov
