@@ -2,12 +2,7 @@ import pytest
 
 import piezo
 
-TEST_CASE_DIR = "tests/test-cases/"
-
-test=piezo.ResistanceCatalogue("config/NC_004148.2_TEST_GM1_RFUS_v1.0.csv")
-
-print(test.catalogue.genes)
-print(test.catalogue.gene_lookup)
+test=piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_GM1_RFUS_v1.0.csv")
 
 def test_catalogue__init__():
 
