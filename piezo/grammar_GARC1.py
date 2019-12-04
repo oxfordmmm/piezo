@@ -352,7 +352,7 @@ def parse_mutation(gene,mutation):
 
     # insist we've been given an amino acid or a wildcard only
     if mutation_type=="SNP":
-        sanity_check_snp()
+        sanity_check_snp(before,after)
 
     return(position, mutation_affects, mutation_type, indel_type, indel_length, indel_bases, before, after)
 
