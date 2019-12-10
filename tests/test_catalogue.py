@@ -2,7 +2,7 @@ import pytest
 
 import piezo
 
-test=piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv")
+test=piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv")
 
 def test_catalogue__init__():
 
