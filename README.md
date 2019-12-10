@@ -6,7 +6,33 @@ Predict the effect of a genetic mutation on the effect of an antibiotic using a 
 
 This code was developed as part of the [CRyPTIC](http://www.crypticproject.org) international tuberculosis consortium. If you would like to use the software commercially, please consult the LICENCE file.
 
-# Design of AMR catalogue
+## Pre-requisites
+
+Everything is Python3. Everything else is fairly standard / should be installed by the `setup.py` if you don't already have it
+* pandas
+* ujson
+* pytest
+* pytest-cov
+
+## Installation
+
+First clone/download the repo. Then
+
+```
+$ cd piezo
+$ ls
+$ python setup.py develop --user
+```
+
+## Included files
+
+```
+$ $ ls tests/test-catalogue/
+NC_004148.2.gbk                    NC_004148.2_TEST_GM1_RFUS_v1.0.csv
+```
+NC_004148 is the reference genome of the human metapneumovirus and is used primarily for unit testing since it is small and fast to parse. 
+
+## Design of AMR catalogue
 
 `piezo` is written so as to be extendable in the future to other ways of describing genetic variation with respect to a reference. It includes the concept of a `grammar` which specifies how the genetic variation is described. 
 
@@ -54,28 +80,3 @@ $ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_
 $ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_GARC1_RFUS_v1.0.csv --mutation M2_300_ins_cta
 {'DRUG_B': 'R', 'DRUG_A': 'U'}
 ```
-## Pre-requisites
-
-Everything is Python3. Everything else is fairly standard / should be installed by the `setup.py` if you don't already have it
-* pandas
-* ujson
-* pytest
-* pytest-cov
-
-## Installation
-
-First clone/download the repo. Then
-
-```
-$ cd piezo
-$ ls
-$ python setup.py develop --user
-```
-
-## Included files
-
-```
-$ $ ls tests/test-catalogue/
-NC_004148.2.gbk                    NC_004148.2_TEST_GM1_RFUS_v1.0.csv
-```
-NC_004148 is the reference genome of the human metapneumovirus and is used primarily for unit testing since it is small and fast to parse. 
