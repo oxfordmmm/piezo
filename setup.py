@@ -7,7 +7,7 @@ setup(
     author='Philip W Fowler',
     author_email="philip.fowler@ndm.ox.ac.uk",
     description="Antibiotic suscetibility predictions from a VCF file.",
-    url="https://github.com/philipwfowler/piezo",
+    url="https://github.com/oxfordmmm/piezo",
     packages=['piezo'],
     package_data={'': ['../config/*']},
     classifiers=[
