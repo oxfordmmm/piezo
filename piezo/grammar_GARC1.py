@@ -13,24 +13,26 @@ def split_mutation(row):
     # ..and the remainder is the mutation
     mutation=row['MUTATION'].split(gene+"@")[1]
 
-    if len(components)==2:
+    cols=mutation.split('_')
+
+    if len(cols)==1:
         mutation_type="SNP"
         mutation_affects="CDS"
         try:
-            position=components[1][1:-1]
+            position=cols[0][1:-1]
             if int(position)<0:
                 mutation_affects="PROM"
             elif int(position)==0:
                 raise ValueError("a position of 0 in a mutation does not make sense!")
         except:
-            position=components[1][:-1]
+            position=cols[0][:-1]
             if position[0]=="-":
                 mutation_affects="PROM"
 
-    elif len(components) in [3,4]:
+    elif len(cols) in [2,3]:
         mutation_type="INDEL"
         mutation_affects="CDS"
-        position=components[1]
+        position=cols[0]
         try:
             if int(position)<0:
                 mutation_affects="PROM"
@@ -93,8 +95,6 @@ def predict_GARC1(catalogue,gene_mutation,verbose):
     '''
 
     components=gene_mutation.split("@")
-
-    print(components)
 
     gene=components[0]
     mutation=gene_mutation.split(gene+"@")[1]
@@ -311,7 +311,7 @@ def parse_mutation(gene,mutation):
     after=None
 
     # split the mutation on underscore
-    cols=mutation.split("@")
+    cols=mutation.split("_")
 
     # infer what type it is depending on how many elements it contains
     if len(cols)==1:
