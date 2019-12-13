@@ -5,13 +5,13 @@ import pandas
 def split_mutation(row):
 
     # split the supplied mutation on _ which separates the components
-    components=row['MUTATION'].split("_")
+    components=row['MUTATION'].split("|")
 
     # the gene name is always the first component
     gene=components[0]
 
     # ..and the remainder is the mutation
-    mutation=row['MUTATION'].split(gene+"_")[1]
+    mutation=row['MUTATION'].split(gene+"|")[1]
 
     if len(components)==2:
         mutation_type="SNP"
@@ -92,10 +92,10 @@ def predict_GARC1(catalogue,gene_mutation,verbose):
         result: is either a dict with the drugs as keys, or "S" if there are no hits in the catalogue
     '''
 
-    components=gene_mutation.split("_")
+    components=gene_mutation.split("|")
 
     gene=components[0]
-    mutation=gene_mutation.split(gene+"_")[1]
+    mutation=gene_mutation.split(gene+"|")[1]
 
     # parse the mutation to work out what type of mutation it is, where it acts etc
     (position, mutation_affects, mutation_type, indel_type, indel_length, indel_bases, before, after) = parse_mutation(gene,mutation)
@@ -309,7 +309,7 @@ def parse_mutation(gene,mutation):
     after=None
 
     # split the mutation on underscore
-    cols=mutation.split("_")
+    cols=mutation.split("|")
 
     # infer what type it is depending on how many elements it contains
     if len(cols)==1:
