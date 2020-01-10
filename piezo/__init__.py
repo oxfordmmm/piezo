@@ -4,4 +4,5 @@
 
 __version__="0.3"
 
+
 from .catalogue import ResistanceCatalogue
