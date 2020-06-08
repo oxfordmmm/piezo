@@ -156,9 +156,11 @@ def predict_GARC1(catalogue,gene_mutation,verbose):
     return(result)
 
 
-def row_prediction(row, predictions, priority, message):
+def row_prediction(row, predictions, priority, message,verbose=False):
     assert len(row) in [0,1], "hitting more than one row in the catalogue!"
     if not row.empty:
+        if verbose:
+            print(priority,message)
         predictions[priority] = str(row["PREDICTION"].values[0])
 
 
@@ -174,42 +176,42 @@ def process_snp_variants(mutation_affects,
     Apply the cascading rules for SNPs, according to the GARC1 grammar.
     '''
 
+    # PRIORITY=6: an exact match
+    row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION==mutation)]
+    row_prediction(row, predictions, 6, "exact SNP match",verbose)
+
     if before==after:
 
         # PRIORITY=1: synonymous mutation at any position in the CDS (e.g. rpoB_*=)
         row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*=")]
-        row_prediction(row, predictions, 1, "syn SNP at any position in the CDS")
+        row_prediction(row, predictions, 1, "syn SNP at any position in the CDS",verbose)
 
     elif before!=after:
 
         # PRIORITY=2: nonsynoymous mutation at any position in the CDS or PROM (e.g. rpoB_*? or rpoB_-*?)
         if mutation_affects=="CDS":
             row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*?")]
-            row_prediction(row, predictions, 2, "nonsyn SNP at any position in the CDS")
+            row_prediction(row, predictions, 2, "nonsyn SNP at any position in the CDS",verbose)
         else:
             row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*?")]
-            row_prediction(row, predictions, 2, "nonsyn SNP at any position in the PROM")
+            row_prediction(row, predictions, 2, "nonsyn SNP at any position in the PROM",verbose)
 
         # PRIORITY=3: het mutation at any position in the CDS or PROM (e.g. rpoB_*Z or rpoB_-*z)
         if mutation_affects=="CDS" and (mutation[-1]=="Z"):
             row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION=="*Z")]
-            row_prediction(row, predictions, 3, "het SNP at any position in the CDS")
+            row_prediction(row, predictions, 3, "het SNP at any position in the CDS",verbose)
         elif mutation[-1]=="z":
             row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*z")]
-            row_prediction(row, predictions, 3, "het SNP at any position in the PROM")
+            row_prediction(row, predictions, 3, "het SNP at any position in the PROM",verbose)
 
         # PRIORITY=4: any nonsynoymous mutation at this specific position in the CDS or PROM  (e.g. rpoB_S450? or rpoB_c-15?)
         row=rules.loc[rules_mutation_type_vector & rules_position_vector & (rules.MUTATION.str[-1]=="?")]
-        row_prediction(row, predictions, 4, "nonsyn SNP at specified position in the CDS")
+        row_prediction(row, predictions, 4, "nonsyn SNP at specified position in the CDS",verbose)
 
         # PRIORITY=5: any het mutation at this specific position in the CDS or PROM  (e.g. rpoB_S450Z or rpoB_c-15z)
         if mutation[-1] in ["Z","z"]:
             row=rules.loc[(rules_mutation_type_vector) & (rules_position_vector) & (rules.MUTATION.str[-1].isin(['Z','z']))]
-            row_prediction(row, predictions, 5, "het SNP at specified position in the CDS")
-
-        # PRIORITY=6: an exact match
-        row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION==mutation)]
-        row_prediction(row, predictions, 6, "exact SNP match")
+            row_prediction(row, predictions, 5, "het SNP at specified position in the CDS",verbose)
 
 def process_indel_variants(mutation_affects,
                            predictions,
