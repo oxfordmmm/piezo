@@ -16,7 +16,7 @@ def test_catalogue__init__():
 
     assert test.catalogue.grammar=="GARC1"
 
-    assert test.catalogue.number_rows==20
+    assert test.catalogue.number_rows==21
 
     assert test.catalogue.drugs==['DRUG_A','DRUG_B']
 

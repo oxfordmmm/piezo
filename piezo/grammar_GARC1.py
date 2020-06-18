@@ -147,7 +147,7 @@ def predict_GARC1(catalogue,gene_mutation,verbose):
 
         if not predictions:
             # all mutations should hit at least one of the default entries, so if this doesn't happen, something is wrong
-            raise ValueError("No entry found in the catalogue for "+gene_mutation)
+            raise ValueError("No entry found in the catalogue for "+gene_mutation+compound)
 
         final_prediction=predictions[sorted(predictions)[-1]]
         result[compound]=final_prediction
