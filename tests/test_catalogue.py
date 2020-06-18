@@ -81,24 +81,26 @@ def test_catalogue_prediction_indels():
     assert test.predict("M2@300_del")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
 
     # check numbered insertions and deletions
-    assert test.predict("M2@300_ins_5")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
-    assert test.predict("M2@300_del_5")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test.predict("M2@300_ins_6")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test.predict("M2@300_del_6")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
 
     # check a specific insertion
-    assert test.predict("M2@300_ins_acct")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test.predict("M2@300_ins_acc")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
 
     assert test.predict("M2@100_indel")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
     assert test.predict("M2@100_ins")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
-    assert test.predict("M2@100_ins_2")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
-    assert test.predict("M2@100_ins_ac")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
+    assert test.predict("M2@100_ins_3")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
+    assert test.predict("M2@100_ins_act")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
 
 
     # check these hit the frameshift rule
-    assert test.predict("M2@100_ins_3")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
-    assert test.predict("M2@100_ins_act")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
-    assert test.predict("M2@300_ins_6")=={'DRUG_A': 'U', 'DRUG_B': 'R'}
-    assert test.predict("M2@300_del_6")=={'DRUG_A': 'U', 'DRUG_B': 'R'}
-    assert test.predict("M2@300_ins_acc")=={'DRUG_A': 'U', 'DRUG_B': 'R'}
+    assert test.predict("M2@100_ins_1")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
+    assert test.predict("M2@100_ins_acta")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
+    assert test.predict("M2@100_ins_400")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
+    assert test.predict("M2@100_ins_actgactg")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
+    assert test.predict("M2@300_ins_61")=={'DRUG_A': 'U', 'DRUG_B': 'R'}
+    assert test.predict("M2@300_del_65")=={'DRUG_A': 'U', 'DRUG_B': 'R'}
+    assert test.predict("M2@300_ins_acctt")=={'DRUG_A': 'U', 'DRUG_B': 'R'}
 
     # badly formed INDELs
     with pytest.raises(Exception):

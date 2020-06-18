@@ -255,7 +255,7 @@ def process_indel_variants(mutation_affects,
         row_prediction(row, predictions, "any insertion of a specified length (or deletion) in the CDS or PROM")
 
     # PRIORITY=4: any frameshifting insertion or deletion in the CDS (e.g. rpoB_*_fs)
-    if indel_length is not None and (indel_length%3)==0:
+    if indel_length is not None and (indel_length%3)!=0:
         row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*_fs")]
         row_prediction(row, predictions, "any frameshifting insertion or deletion in the CDS")
 
@@ -274,7 +274,7 @@ def process_indel_variants(mutation_affects,
         row_prediction(row, predictions, "an insertion (or deletion) of a specified length at a specific position in the CDS or PROM (e.g. rpoB_1300_ins_2 or rpoB_-15_del_200)")
 
     # PRIORITY=8: a frameshifting mutation at a specific position in the CDS (e.g. rpoB_100_fs)
-    if indel_length is not None and (indel_length%3)==0 and position is not None:
+    if indel_length is not None and (indel_length%3)!=0 and position is not None:
         row=rules.loc[rules_mutation_type_vector & rules_position_vector & (rules.MUTATION==str(position)+"_fs")]
         row_prediction(row, predictions, "a frameshifting mutation at a specific position in the CDS (e.g. rpoB_100_fs)")
 
