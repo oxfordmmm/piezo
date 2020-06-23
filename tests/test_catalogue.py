@@ -16,7 +16,7 @@ def test_catalogue__init__():
 
     assert test.catalogue.grammar=="GARC1"
 
-    assert test.catalogue.number_rows==21
+    assert test.catalogue.number_rows==24
 
     assert test.catalogue.drugs==['DRUG_A','DRUG_B']
 
@@ -29,7 +29,7 @@ def test_catalogue__init__():
 def test_catalogue_prediction_snps():
 
     # check a row in the catalogue
-    assert test.predict("M2@L73P")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
+    assert test.predict("M2@L73P")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
 
     # check a synonymous mutation has no effect
     assert test.predict("M2@L73L")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
@@ -43,6 +43,8 @@ def test_catalogue_prediction_snps():
     assert test.predict("M2@G74Z")=={'DRUG_A': 'R', 'DRUG_B': 'S'}
 
     assert test.predict("M2@G74P")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
+
+    assert test.predict("M2@G74!")=={'DRUG_A': 'S', 'DRUG_B': 'U'}
 
     assert test.predict("M2@t-15c")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
 
