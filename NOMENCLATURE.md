@@ -1,11 +1,11 @@
-# A General Ontology for Antimicrobial Resistance Catalogues (GOARC) 
+# A General Ontology for Antimicrobial Resistance Catalogues (GOARC)
 
 ## Assumptions
 
 * Resistance to an antimicrobial can be predicted by genetics i.e. the presence or absence of specific genetic sequences. AMR catalogues therefore need to specify
    * the presence of absence of genes (i.e. coding sequences)
    * changes, insertions or deletions to coding sequences and also to promoter regions
-* Any code that parses catalogues should 
+* Any code that parses catalogues should
    * apply general rules first and specific rules last to allow specific entries to override general entries.
    * have unit testing using known, high-confidence mutations to provide confidence that the code is working as intended
 * Where possible, catalogues should be complete and computer-readable i.e. no logic should be written in to any computer code and the catalogue should not contain rules written in sentences! For example, catalogues should specify the effect of synonymous mutations in the coding region of genes of interest.
@@ -28,12 +28,12 @@ For genes that are not present in the reference genome for a species, for exampl
 ### Amino acids and nucleotides
 
 * Amino acids are always given in UPPERCASE. Nucleotides in lowercase. This should be checked by the code and fail if this is not the case ('halt and catch fire').
-* Het calls at present are given by the letter z, hence `Z` for an amino acid or `z` for a base. 
+* Het calls at present are given by the letter z, hence `Z` for an amino acid or `z` for a base.
 * Likewise, null calls are given by the letter x, hence `X` for an amino acid or `x` for a base.
 * Hence code should insist that
 
 ```
-aminoacids in ['A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','X','Y','Z','!']
+aminoacids in ['A','C','D','E','F','G','H','I','K','L','M','N','O','P','Q','R','S','T','V','W','X','Y','Z','!']
 
 nucleotides in ['a','c','t','g','x','z']
 ```
@@ -45,9 +45,9 @@ This is designed to be general and expandable (especially for indels)
 * `*` is reserved to mean any residue (or base, depending on context). Note that `-*` is expanded to mean 'any promoter position'
 * `!` is reserved for the STOP codon. This is defined in the private method `_setup_conversion_dicts()` in `cryptic.genetics.gene` (rather than `Stop` or `*` as previously)
 * `?` is a wildcard for any non-synonmous mutation and `=` is a wildcard for the synoymous mutation
- 
-## Catalogue entries 
- 
+
+## Catalogue entries
+
 ### Presence or absence of genes
 
 This is the highest level of the hierarchy and these rules are therefore applied first. A gene presence entry is simply
@@ -56,7 +56,7 @@ This is the highest level of the hierarchy and these rules are therefore applied
 
 To avoid confusion with the wildcards, we use `~` to indicate logical NOT hence
 
-`~oxa48` 
+`~oxa48`
 
 indicates the absence of gene *oxa48*.
 
@@ -103,7 +103,7 @@ Note that the reference amino acid or base cannot, and therefore is not, specifi
 
 `rpoB_*=`, `rrs_*=`, `fabG1_*=`
 
-Lastly, these rules have to be applied in a descending hierarchy which is based on the assumption that more specfic rules should override more general rules. This is a made up example. 
+Lastly, these rules have to be applied in a descending hierarchy which is based on the assumption that more specfic rules should override more general rules. This is a made up example.
 ```
 rpoB_*= S
 rpoB_*?  U
@@ -124,7 +124,7 @@ e.g. `rpoB_1300_indel`
 
 which means any insertion or deletion of any length at this position. If position is positive it is the nucleotide number within the coding sequence. If negative, it is within the promoter.
 
-This can be overridden with more specific rules, the first of which is 
+This can be overridden with more specific rules, the first of which is
 
 `gene_position_fs`
 
@@ -164,7 +164,7 @@ rpoB_*_fs     R
 rpoB_1300_ins R
 ```
 
-Here the hierarchy ensures that the susceptible insertions (or unknown deletions) that are actually frame shifts can overriden with an R. 
+Here the hierarchy ensures that the susceptible insertions (or unknown deletions) that are actually frame shifts can overriden with an R.
 
 For promoters the picture is a bit more straightforward since there is no concept of a frame shift.
 
@@ -175,8 +175,3 @@ fabG1_-15_indel                     any insertion or deletion at nucleotide -15 
 fabG1_-15_ins_2, fabG1_-15_del_2    any insertion of length 2 (or deletion of length 2) in the promoter
 fabG1_-15_ins_ca                    insertion of bases ca at position -15 in the promoter
 ```
-
-
-
-
-
