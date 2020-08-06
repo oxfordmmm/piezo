@@ -384,7 +384,7 @@ def infer_mutation_affects(position):
 
 def sanity_check_snp(before,after):
 
-    assert after in ['a','c','t','g','x','z','?',"!",'A','C','D','E','F','G','H','I','K','L','M','N','O','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not a recognised amino acid or base!"
+    assert after in ['a','c','t','g','x','z','o','?',"!",'A','C','D','E','F','G','H','I','K','L','M','N','O','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not a recognised amino acid or base!"
     assert before in ['a','c','t','g','?','!','A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y'], before+" is not a recognised amino acid or base!"
 
     if before.islower():
