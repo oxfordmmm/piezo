@@ -16,7 +16,7 @@ def test_catalogue__init__():
 
     assert test.catalogue.grammar=="GARC1"
 
-    assert test.catalogue.number_rows==24
+    assert test.catalogue.number_rows==36
 
     assert test.catalogue.drugs==['DRUG_A','DRUG_B']
 
@@ -34,8 +34,20 @@ def test_catalogue_prediction_snps():
     # check a synonymous mutation has no effect
     assert test.predict("M2@L73L")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
 
-    # check a row in the catalogue
+    # check a het
     assert test.predict("M2@L73Z")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
+
+    # check a filter fail that will hit the default S rule
+    assert test.predict("M2@L73O")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
+
+    # check a null that will hit the default S rule
+    assert test.predict("M2@L73X")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
+
+    # check a filter fail that hits a specific rule for DRUG_A
+    assert test.predict("M2@G74O")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
+
+    # check a null that hits a specific rule for DRUG_A
+    assert test.predict("M2@G74X")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
 
     # check hitting a wildtype row
     assert test.predict("M2@G74I")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
@@ -49,6 +61,10 @@ def test_catalogue_prediction_snps():
     assert test.predict("M2@t-15c")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
 
     assert test.predict("M2@t-15z")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
+
+    assert test.predict("M2@t-15o")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
+
+    assert test.predict("M2@t-15x")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
 
     # check that a gene not in the catalogue simply returns an "S"
     assert test.predict("N1@S2T")=="S"
