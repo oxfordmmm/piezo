@@ -187,36 +187,36 @@ def process_snp_variants(mutation_affects,
 
     elif before!=after:
 
-        # PRIORITY=2: het mutation at any position in the CDS or PROM (e.g. rpoB_*Z or rpoB_-*z)
+        # PRIORITY=2: nonsynoymous mutation at any position in the CDS or PROM (e.g. rpoB_*? or rpoB_-*?)
+        if mutation_affects=="CDS":
+            row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*?")]
+            row_prediction(row, predictions, 2, "nonsyn SNP at any position in the CDS",verbose)
+        else:
+            row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*?")]
+            row_prediction(row, predictions, 2, "nonsyn SNP at any position in the PROM",verbose)
+
+        # PRIORITY=3: het mutation at any position in the CDS or PROM (e.g. rpoB_*Z or rpoB_-*z)
         if mutation[-1] in ['Z','z','O','o','X','x']:
             if mutation_affects=="CDS":
                 if (mutation[-1]=="Z"):
                     row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION=="*Z")]
-                    row_prediction(row, predictions, 2, "het SNP at any position in the CDS",verbose)
+                    row_prediction(row, predictions, 3, "het SNP at any position in the CDS",verbose)
                 elif (mutation[-1]=="O"):
                     row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION=="*O")]
-                    row_prediction(row, predictions, 2, "filter fail at any position in the CDS",verbose)
+                    row_prediction(row, predictions, 3, "filter fail at any position in the CDS",verbose)
                 elif (mutation[-1]=="X"):
                     row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION=="*O")]
-                    row_prediction(row, predictions, 2, "null at any position in the CDS",verbose)
+                    row_prediction(row, predictions, 3, "null at any position in the CDS",verbose)
             else:
                 if mutation[-1]=="z":
                     row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*z")]
-                    row_prediction(row, predictions, 2, "het SNP at any position in the PROM",verbose)
+                    row_prediction(row, predictions, 3, "het SNP at any position in the PROM",verbose)
                 elif mutation[-1]=='o':
                     row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*o")]
-                    row_prediction(row, predictions, 2, "filter fail at any position in the PROM",verbose)
+                    row_prediction(row, predictions, 3, "filter fail at any position in the PROM",verbose)
                 elif mutation[-1]=='x':
                     row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*x")]
-                    row_prediction(row, predictions, 2, "null at any position in the PROM",verbose)
-        else:
-            # PRIORITY=3: nonsynoymous mutation at any position in the CDS or PROM (e.g. rpoB_*? or rpoB_-*?)
-            if mutation_affects=="CDS":
-                row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*?")]
-                row_prediction(row, predictions, 3, "nonsyn SNP at any position in the CDS",verbose)
-            else:
-                row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*?")]
-                row_prediction(row, predictions, 3, "nonsyn SNP at any position in the PROM",verbose)
+                    row_prediction(row, predictions, 3, "null at any position in the PROM",verbose)
 
         # PRIORITY=4: specific mutation at any position in the CDS: only Stop codons make sense for now (e.g. rpoB_*!)
         if mutation[-1] in ['!']:
