@@ -24,9 +24,9 @@ catalogue = collections.namedtuple('catalogue',
                                     )
 class ResistanceCatalogue:
 
-    def __init__(self, catalogue_file):
+    def __init__(self, catalogue_file, prediction_subset_only=False):
 
-        self.catalogue = load_catalogue(catalogue_file)
+        self.catalogue = load_catalogue(catalogue_file, prediction_subset_only)
 
     def predict(self, mutation, verbose=False):
 
@@ -37,12 +37,13 @@ def parse_json(data):
     return ujson.loads(data)
 
 
-def load_catalogue(catalogue_file):
+def load_catalogue(catalogue_file,prediction_subset_only):
     '''
     Read in the Antimicrobial Resistance Catalogue.
 
     Args:
         catalogue_file (str): path to a resistance catalogue as a CSV file in the correct format, as determined by its grammar
+        prediction_subset_only (bool): whether to subset the catalogue down so it ONLY includes entities (e.g. DRUG,GENE pairs) that include at least one row predicting resistance
 
     Returns:
         catalogue (named_tuple): defined tuple
@@ -94,7 +95,7 @@ def load_catalogue(catalogue_file):
 
     elif grammar=="GARC1":
 
-        (rules,genes,drug_lookup,gene_lookup)=process_catalogue_GARC1(rules,drugs)
+        (rules,genes,drug_lookup,gene_lookup)=process_catalogue_GARC1(rules,drugs,catalogue_genes_only=prediction_subset_only)
 
     return catalogue(genbank_reference,
                            name,

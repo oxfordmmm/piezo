@@ -51,18 +51,33 @@ def split_mutation(row):
     return(pandas.Series([gene,mutation,position,mutation_affects,mutation_type]))
 
 
-def process_catalogue_GARC1(rules,drugs):
+def process_catalogue_GARC1(rules,drugs,catalogue_genes_only):
     '''
     For the GARC1 grammar, add some additional columns to the rules dataframe that can be inferred from the mutation.
 
     Args:
         rules (dataframe): Pandas dataframe of the AMR catalogue in the general form
         drugs (list): list of drugs in the AMR catalogue
+        catalogue_genes_only (bool): whether to subset the catalogue down so it ONLY includes (DRUG,GENE) pairs that include at least one row predicting resistance
 
     '''
 
     # infer these columns
     rules[['GENE','MUTATION','POSITION','MUTATION_AFFECTS','MUTATION_TYPE']]=rules.apply(split_mutation,axis=1)
+
+    if catalogue_genes_only:
+
+        # create an index of which (drug,gene) pairs have at least one row predicting resistance
+        drug_list_index=rules.loc[rules.PREDICTION=="R"][['DRUG','GENE']].groupby(['DRUG','GENE']).count()
+
+        # index the rules so we can right join
+        rules.set_index(['DRUG','GENE'],inplace=True)
+
+        # do the right join; this has the effect of removing all the rows for "genes of interest"
+        rules=rules.join(drug_list_index,how='right')
+
+        # remove the index
+        rules.reset_index(inplace=True)
 
     # create a list of the genes mentioned in the catalogue
     genes=list(rules.GENE.unique())
