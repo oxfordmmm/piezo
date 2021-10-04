@@ -209,7 +209,6 @@ def process_snp_variants(mutation_affects,
         else:
             row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*?")]
             row_prediction(row, predictions, 2, "nonsyn SNP at any position in the PROM",verbose)
-
         # PRIORITY=3: het mutation at any position in the CDS or PROM (e.g. rpoB_*Z or rpoB_-*z)
         if mutation[-1] in ['Z','z','O','o','X','x']:
             if mutation_affects=="CDS":
@@ -220,7 +219,7 @@ def process_snp_variants(mutation_affects,
                     row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION=="*O")]
                     row_prediction(row, predictions, 3, "filter fail at any position in the CDS",verbose)
                 elif (mutation[-1]=="X"):
-                    row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION=="*O")]
+                    row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION=="*X")]
                     row_prediction(row, predictions, 3, "null at any position in the CDS",verbose)
             else:
                 if mutation[-1]=="z":
