@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/oxfordmmm/piezo.svg?branch=develop)](https://travis-ci.com/oxfordmmm/piezo) [![codecov](https://codecov.io/gh/oxfordmmm/piezo/branch/develop/graph/badge.svg)](https://codecov.io/gh/oxfordmmm/piezo) [![Documentation Status](https://readthedocs.org/projects/piezo/badge/?version=latest)](https://piezo.readthedocs.io/en/latest/?badge=latest)
+[![Build Status](https://app.travis-ci.com/oxfordmmm/piezo.svg?branch=develop)](https://app.travis-ci.com/oxfordmmm/piezo) [![codecov](https://codecov.io/gh/oxfordmmm/piezo/branch/develop/graph/badge.svg)](https://codecov.io/gh/oxfordmmm/piezo) [![Documentation Status](https://readthedocs.org/projects/piezo/badge/?version=latest)](https://piezo.readthedocs.io/en/latest/?badge=latest)
 
 # piezo
 
