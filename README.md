@@ -1,4 +1,4 @@
-![Tests](https://github.com/oxfordmmm/piezo/actions/workflows/test.yml/badge.svg) 
+[![Tests](https://github.com/oxfordmmm/piezo/actions/workflows/tests.yaml/badge.svg)](https://github.com/oxfordmmm/piezo/actions/workflows/tests.yaml)
 [![codecov](https://codecov.io/gh/oxfordmmm/piezo/branch/develop/graph/badge.svg)](https://codecov.io/gh/oxfordmmm/piezo) [![Documentation Status](https://readthedocs.org/projects/piezo/badge/?version=latest)](https://piezo.readthedocs.io/en/latest/?badge=latest) [![PyPI version](https://badge.fury.io/py/piezo.svg)](https://badge.fury.io/py/piezo)
 
 # piezo
