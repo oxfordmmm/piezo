@@ -8,23 +8,25 @@ Predict the effect of a genetic mutation on the effect of an antibiotic using a 
 
 This code was developed as part of the [CRyPTIC](http://www.crypticproject.org) international tuberculosis consortium. If you would like to use the software commercially, please consult the LICENCE file.
 
-## Pre-requisites
-
-Everything is Python3. Everything else is fairly standard / should be installed by the `setup.py` if you don't already have it
-* pandas
-* ujson
-* pytest
-* pytest-cov
-
 ## Installation
 
-First clone/download the repo. Then
+### using `pip`
 
 ```
+$ pip install piezeo
 $ cd piezo
-$ ls
-$ python setup.py develop --user
+$ py.test
 ```
+
+### from GitHub
+
+```
+$ git clone https://github.com/oxfordmmm/piezo
+$ cd piezo
+$ pip install .
+$ py.test
+```
+The pre-requisites are all fairly standard and are listed in `setup.cfg` so will be automatically installed.
 
 ## Included files
 
