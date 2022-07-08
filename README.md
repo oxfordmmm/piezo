@@ -12,13 +12,17 @@ This code was developed as part of the [CRyPTIC](http://www.crypticproject.org) 
 
 ### using `pip`
 
+This will install the most recent release on PyPI.
+
 ```
-$ pip install piezeo
+$ pip install piezo
 $ cd piezo
 $ py.test
 ```
 
 ### from GitHub
+
+This will install the current version from GitHub and therefore may be ahead of the PyPI version.
 
 ```
 $ git clone https://github.com/oxfordmmm/piezo
