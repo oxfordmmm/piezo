@@ -3,6 +3,15 @@
 import pandas
 
 def split_mutation(row):
+    if '&' in row['MUTATION']:
+        #Multi-mutation so don't try to split it out in the same way
+        gene = 'MULTI'
+        #Ensure mutations are in a reproducable order
+        mutation = '&'.join(sorted(list(row['MUTATION'].split('&'))))
+        position = None
+        mutation_affects = None
+        mutation_type = 'MULTI'
+        return pandas.Series([gene, mutation, position, mutation_affects, mutation_type])
 
     # split the supplied mutation on _ which separates the components
     components=row['MUTATION'].split("@")
@@ -67,7 +76,7 @@ def process_catalogue_GARC1(rules,drugs,catalogue_genes_only):
 
     if catalogue_genes_only:
 
-        # create an index of which (drug,gene) pairs have at least one row predicting resistance
+        # create an index of which (drug,gene) pairs have at least one row predicting resistance or uncertainty
         drug_list_index=rules.loc[rules.PREDICTION=="R"][['DRUG','GENE']].groupby(['DRUG','GENE']).count()
 
         # index the rules so we can right join
@@ -108,7 +117,9 @@ def predict_GARC1(catalogue,gene_mutation,verbose):
     Returns:
         result: is either a dict with the drugs as keys, or "S" if there are no hits in the catalogue
     '''
-
+    if '&' in gene_mutation:
+        #Multi-gene so treat differently
+        return predict_multi(catalogue, gene_mutation)
     components=gene_mutation.split("@")
 
     gene=components[0]
@@ -168,6 +179,39 @@ def predict_GARC1(catalogue,gene_mutation,verbose):
         result[compound]=final_prediction
 
     return(result)
+
+def predict_multi(catalogue, gene_mutation):
+    '''Get the predictions for a given multi-mutation. 
+    Mutli-mutations are (currently) a lot stricter than others, and do not support wildcards or subsets of the mutations
+
+    Args:
+        catalogue (named tuple): The resistance catalogue
+        gene_mutation (str): String of the mutations, each in GARC, separated by `&`
+    Returns:
+        dict | str : Either a dict with drugs as the keys, or 'S' when no predictions in catalogue
+    '''
+    #Ensure that the mutations are in a reproducable order
+    sorted_mutation = '&'.join(sorted(list(gene_mutation.split('&'))))
+
+    #Get the multi rules
+    multi_rules = catalogue.rules[catalogue.rules['MUTATION_TYPE']=='MULTI']
+
+    drugs = {drug: 'S' for drug in catalogue.drugs}
+    values = catalogue.values
+    for (_, rule) in multi_rules.iterrows():
+        if rule['MUTATION'] == sorted_mutation:
+            #We have a match! Prioritise predictions based on values
+            drug = rule['DRUG']
+            if values.index(rule['PREDICTION']) < values.index(drugs[drug]):
+                #The prediction is closer to the start of the values list, so should take priority
+                drugs[drug] = rule['PREDICTION']
+
+    #Check to ensure we have at least 1 prediction
+    if len([key for key in drugs.keys() if drugs[key] != 'S']) > 0:
+        return {drug: drugs[drug] for drug in drugs.keys() if drugs[drug]!='S'}
+
+    #Nothing predicted, so default to S
+    return 'S'
 
 
 def row_prediction(row, predictions, priority, message, verbose=False):
