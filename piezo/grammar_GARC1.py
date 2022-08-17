@@ -77,7 +77,7 @@ def process_catalogue_GARC1(rules,drugs,catalogue_genes_only):
     if catalogue_genes_only:
 
         # create an index of which (drug,gene) pairs have at least one row predicting resistance or uncertainty
-        drug_list_index=rules.loc[rules.PREDICTION=="R"][['DRUG','GENE']].groupby(['DRUG','GENE']).count()
+        drug_list_index=rules.loc[(rules.PREDICTION=="R") | (rules.PREDICTION == 'U')][['DRUG','GENE']].groupby(['DRUG','GENE']).count()
 
         # index the rules so we can right join
         rules.set_index(['DRUG','GENE'],inplace=True)
