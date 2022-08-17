@@ -79,9 +79,6 @@ def load_catalogue(catalogue_file,prediction_subset_only):
     else:
         raise ValueError("content of column CATALOGUE_VALUES not recognised!")
 
-    # insist there are no duplicate rows
-    duplicated_rows=rules.loc[rules.duplicated(subset=["DRUG","MUTATION"],keep='first')]
-    assert len(duplicated_rows)==0, "There are rows with duplicated [DRUG, MUTATION] entries! "+duplicated_rows
 
     # since we are storing the above values in the named tuple, we don't need them in the rules dataframe
     rules.drop(columns=['GENBANK_REFERENCE', 'CATALOGUE_NAME', 'CATALOGUE_VERSION', 'CATALOGUE_GRAMMAR', 'PREDICTION_VALUES'],inplace=True)

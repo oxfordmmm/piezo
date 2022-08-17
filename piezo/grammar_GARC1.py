@@ -214,13 +214,28 @@ def predict_multi(catalogue, gene_mutation):
     return 'S'
 
 
-def row_prediction(row, predictions, priority, message, verbose=False):
-    assert len(row) in [0,1], "hitting more than one row in the catalogue!"
-    if not row.empty:
-        assert int(priority) in range (1,11), 'priority must be an integer in range 1,2..10'
-        if verbose:
-            print(str(int(priority)),str(row["PREDICTION"].values[0]), message)
-        predictions[int(priority)] = str(row["PREDICTION"].values[0])
+def row_prediction(rows, predictions, priority, message, verbose=False):
+    '''Get the predictions from the catalogue for the applicable rows
+
+    Args:
+        rows (pandas.DataFrame): DataFrame of the rows within the catalogue
+        predictions (dict): Predictions dict
+        priority (int): Priority
+        message (str): Message
+        verbose (bool, optional): Whether to be verbose. Defaults to False.
+    '''
+    pred = None
+    values = ['R', 'U', 'F', 'S', None]
+    for _, row in rows.iterrows():
+        if not row.empty:
+            assert int(priority) in range (1,11), 'priority must be an integer in range 1,2..10'
+            if verbose:
+                print(str(int(priority)),str(row["PREDICTION"]), message)
+            if values.index(row['PREDICTION']) < values.index(pred):
+                #This row's prediction is more important than the current, so prioritise
+                pred = row['PREDICTION']
+    if pred:
+        predictions[int(priority)] = str(pred)
 
 
 def process_snp_variants(mutation_affects,
