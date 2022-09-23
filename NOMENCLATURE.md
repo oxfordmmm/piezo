@@ -45,6 +45,7 @@ This is designed to be general and expandable (especially for indels)
 * `*` is reserved to mean any residue (or base, depending on context). Note that `-*` is expanded to mean 'any promoter position'
 * `!` is reserved for the STOP codon. This is defined in the private method `_setup_conversion_dicts()` in `cryptic.genetics.gene` (rather than `Stop` or `*` as previously)
 * `?` is a wildcard for any non-synonmous mutation and `=` is a wildcard for the synoymous mutation
+* `&` can be used to join any valid mutation with any other valid mutation to form a multi-mutation - allowing detailing of several mutations in a single row of a catalogue
 
 ## Catalogue entries
 
@@ -174,4 +175,102 @@ fabG1_-*_ins, fabG1_-*_del          any insertion (or deletion) in the promoter
 fabG1_-15_indel                     any insertion or deletion at nucleotide -15 in the promoter
 fabG1_-15_ins_2, fabG1_-15_del_2    any insertion of length 2 (or deletion of length 2) in the promoter
 fabG1_-15_ins_ca                    insertion of bases ca at position -15 in the promoter
+```
+
+### Multi-mutations
+Any valid mutation can be joined to any other valid mutation by concatenating with `&` to form a new valid mutation.
+
+Useful for cases which arrose from statistical testing of allelic variant calling, which found statistical links for cases which have >1 mutation once parsed into GARC. As such, the individual mutations could not be utilised for predictions as the correlation was established with all mutations. Multi-mutations allow capture of such cases.
+
+```
+rpoB@S450L                          SNP within rpoB at position 450 S-->L. Valid mutation
+rpoB@12_ins_aac                     Insert bases 'aac' at position 12 within rpoB. Valid mutation
+rpoB@12_ins_aac&rpoB@S450L          Insert bases 'aac' at position 12 within rpoB AND a SNP in rpoB at position 450 S-->L. Also a valid mutation
+```
+It is at the developer's discretion when to utilise this, but it is recommended that this is only used when necessary for a specific application (examples of which are below)
+
+This is also useful for cases in which different codon variations within a synonymous mutation confer different predictions - allowing specifying such mutations within a single row of a catalogue. It also retains the idea that this mutation is within a coding region of the gene, which is something which is not present if nucleotide changes are given.
+
+For example, if we want to show the following effects of `fabG1@L203L`
+```
+If the change is `fabG1@g609a`, it confers `R`
+If the change is `fabG1@c607t`, it confers `U`
+If the change is anything else, it should confer `S` due to the default rule `gene@*=` confers `S`
+```
+
+Utilising this logic, we can produce the following rules:
+```
+`fabG1@L203L&fabG1@g609a` confers `R`
+`fabG1@L203L&fabG1@c607t` confers `U`
+`fabG1@L203L` confers `S`
+```
+
+As such, it is recommended that any synonymous mutations are treated as such when parsing into GARC.
+
+## Backus–Naur form (BNF)
+### Catalogue BNF
+This is a definition of the grammar acceptable to use within a catalogue.
+Where `<gene-name>` is any valid gene or locus name (usually matching the regex `[a-zA-Z0-9_]+`)
+```
+<mutation> ::= 
+               <gene-name>"@"<nucleotide><position><nucleotide> | 
+               <gene-name>"@"<amino-acid><number><amino-acid> |
+               <gene-name>"@"<position>"_ins_"<nucleotides> |
+               <gene-name>"@"<position>"_ins_"<number> |
+               <gene-name>"@"<position>"_ins" |
+               <gene-name>"@"<position>"_del_"<nucleotides> |
+               <gene-name>"@"<position>"_del_"<number> |
+               <gene-name>"@"<position>"_del" |
+               <gene-name>"@"<position>"_indel" |
+               <gene-name>"@"<position>"_fs" |
+               <gene-name>"@"<pos-wildcard><wildcard> |
+               <gene-name>"@"<nucleotide><pos>"?" |
+               <gene-name>"@"<amino-acid><number>"?" |
+               <gene-name>"@"<positive-position>"=" |
+               <mutation>"&"<mutation>
+
+<wildcard> ::= "?" | "="
+
+<positive-position> ::= <number> | "*"
+
+<position> ::= <pos> | <pos-wildcard>
+
+<pos-wildcard> ::= "*" | "-*"
+
+<pos> ::= <number> | "-"<number>
+
+<nucleotides> ::= <nucleotide> | <nucleotide><nucleotide>
+
+<nucleotide> ::= "a" | "c" | "t" | "g" | "x" | "z"
+
+<amino-acid> ::= "A" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "V" | "W" | "X" | "Y" | "Z" | "!"
+
+<number> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | <number><number>
+```
+### Prediction BNF
+Due to wildcards not being intended for use for prediction (i.e it doesn't make sense to ask `piezo` to predict the effects of `rpoB@*?`), the grammar for prediction is slightly changed to reflect this.
+`<gene-name>` is still any valid gene or locus name (usually matching the regex `[a-zA-Z0-9_]+`)
+```
+<mutation> ::= 
+               <gene-name>"@"<nucleotide><pos><nucleotide> | 
+               <gene-name>"@"<amino-acid><number><amino-acid> |
+               <gene-name>"@"<pos>"_ins_"<nucleotides> |
+               <gene-name>"@"<pos>"_ins_"<number> |
+               <gene-name>"@"<pos>"_ins" |
+               <gene-name>"@"<pos>"_del_"<nucleotides> |
+               <gene-name>"@"<pos>"_del_"<number> |
+               <gene-name>"@"<pos>"_del" |
+               <gene-name>"@"<pos>"_indel" |
+               <gene-name>"@"<pos>"_fs" |
+               <mutation>"&"<mutation>
+
+<pos> ::= <number> | "-"<number>
+
+<nucleotides> ::= <nucleotide> | <nucleotide><nucleotide>
+
+<nucleotide> ::= "a" | "c" | "t" | "g" | "x" | "z"
+
+<amino-acid> ::= "A" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "K" | "L" | "M" | "N" | "O" | "P" | "Q" | "R" | "S" | "T" | "V" | "W" | "X" | "Y" | "Z" | "!"
+
+<number> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | <number><number>
 ```

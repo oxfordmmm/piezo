@@ -10,25 +10,22 @@ This code was developed as part of the [CRyPTIC](http://www.crypticproject.org) 
 
 ## Installation
 
-### using `pip`
+### Using `pip`
 
 This will install the most recent release on PyPI.
 
 ```
-$ pip install piezo
-$ cd piezo
-$ py.test
+pip install piezo
 ```
 
-### from GitHub
+### From GitHub
 
 This will install the current version from GitHub and therefore may be ahead of the PyPI version.
 
 ```
-$ git clone https://github.com/oxfordmmm/piezo
-$ cd piezo
-$ pip install .
-$ py.test
+git clone https://github.com/oxfordmmm/piezo
+cd piezo
+pip install .
 ```
 The pre-requisites are all fairly standard and are listed in `setup.cfg` so will be automatically installed.
 
