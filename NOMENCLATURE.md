@@ -212,6 +212,7 @@ As such, it is recommended that any synonymous mutations are treated as such whe
 This is a definition of the grammar acceptable to use within a catalogue.
 Where `<gene-name>` is any valid gene or locus name (usually matching the regex `[a-zA-Z0-9_]+`)
 ```
+<complete-mutation> ::= <mutation> | <mutation>":"<number> | <mutation>":0."<number> | <complete-mutation>"&"<complete-mutation>
 <mutation> ::= 
                <gene-name>"@"<nucleotide><position><nucleotide> | 
                <gene-name>"@"<amino-acid><number><amino-acid> |
@@ -226,8 +227,7 @@ Where `<gene-name>` is any valid gene or locus name (usually matching the regex 
                <gene-name>"@"<pos-wildcard><wildcard> |
                <gene-name>"@"<nucleotide><pos>"?" |
                <gene-name>"@"<amino-acid><number>"?" |
-               <gene-name>"@"<positive-position>"=" |
-               <mutation>"&"<mutation>
+               <gene-name>"@"<positive-position>"="
 
 <wildcard> ::= "?" | "="
 
@@ -251,6 +251,7 @@ Where `<gene-name>` is any valid gene or locus name (usually matching the regex 
 Due to wildcards not being intended for use for prediction (i.e it doesn't make sense to ask `piezo` to predict the effects of `rpoB@*?`), the grammar for prediction is slightly changed to reflect this.
 `<gene-name>` is still any valid gene or locus name (usually matching the regex `[a-zA-Z0-9_]+`)
 ```
+<complete-mutation> ::= <mutation> | <mutation>":"<number> | <mutation>":0."<number> | <complete-mutation>"&"<complete-mutation>
 <mutation> ::= 
                <gene-name>"@"<nucleotide><pos><nucleotide> | 
                <gene-name>"@"<amino-acid><number><amino-acid> |

@@ -16,15 +16,15 @@ def test_catalogue__init__():
 
     assert test.catalogue.grammar=="GARC1"
 
-    assert test.catalogue.number_rows==36
+    assert test.catalogue.number_rows==38
 
     assert test.catalogue.drugs==['DRUG_A','DRUG_B']
 
-    assert test.catalogue.genes==['M2']
+    assert test.catalogue.genes==['M2', 'MULTI']
 
-    assert test.catalogue.gene_lookup == {'M2':['DRUG_A','DRUG_B']}
+    assert test.catalogue.gene_lookup == {'M2':['DRUG_A','DRUG_B'], 'MULTI': ['DRUG_A', 'DRUG_B']}
 
-    assert test.catalogue.drug_lookup == {'DRUG_A':['M2'],'DRUG_B':['M2']}
+    assert test.catalogue.drug_lookup == {'DRUG_A':['M2', 'MULTI'],'DRUG_B':['M2', 'MULTI']}
 #
 def test_catalogue_prediction_snps():
 
@@ -80,10 +80,13 @@ def test_catalogue_prediction_snps():
     # badly formed gene_mutation
     with pytest.raises(Exception):
         assert test.predict("M3@K73P_3")
-        assert test.predict("M3@K73P")
+    with pytest.raises(Exception):
         assert test.predict("M2@K73t")
+    with pytest.raises(Exception):
         assert test.predict("M2@a-10a")
+    with pytest.raises(Exception):
         assert test.predict("M2@a-10A")
+    with pytest.raises(Exception):
         assert test.predict("M2@T-10a")
 #
 def test_catalogue_prediction_indels():
@@ -123,7 +126,19 @@ def test_catalogue_prediction_indels():
     # badly formed INDELs
     with pytest.raises(Exception):
         assert test.predict("M2@300_indel_5")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    with pytest.raises(Exception):
         assert test.predict("M2@300_indel_-5")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    with pytest.raises(Exception):
         assert test.predict("M2@300_insdel")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
-        assert test.predict("M2@300_del_act")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    with pytest.raises(Exception):
         assert test.predict("M2@300_del_ACT")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+
+def test_multi():
+    #Exact match with 2 lines of the catalogue
+    assert test.predict("M2@G74!&M2@G740") == {"DRUG_A": "U", "DRUG_B": "R"}
+
+    #Should hit an 'S' (and 'U' default) and an 'R'
+    assert test.predict("M2@F75T&M2@G74P") == {"DRUG_A": 'R', "DRUG_B": 'U'}
+
+    #Should hit an 'F' and an 'R' (and 'U' default)
+    assert test.predict("M2@L73Z&M2@G74P") == {"DRUG_A": 'R', 'DRUG_B': 'U'}

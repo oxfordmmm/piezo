@@ -95,7 +95,7 @@ def process_catalogue_GARC1(rules,drugs,catalogue_genes_only):
     gene_lookup={}
     for gene_name in genes:
         df=rules.loc[rules.GENE==gene_name]
-        gene_lookup[gene_name]=list(df.DRUG.unique())
+        gene_lookup[gene_name] = sorted(list(df.DRUG.unique()))
 
     # create a dictionary where the drugs are keys and the entries tell which genes are affected
     drug_lookup={}
@@ -210,9 +210,56 @@ def predict_multi(catalogue, gene_mutation):
     if len([key for key in drugs.keys() if drugs[key] != 'S']) > 0:
         return {drug: drugs[drug] for drug in drugs.keys() if drugs[drug]!='S'}
 
-    #Nothing predicted, so default to S
-    return 'S'
+    #Nothing predicted, so try each individual mutation
+    predictions = {}
+    for mutation in sorted_mutation.split("&"):
+        pred = predict_GARC1(catalogue, mutation, False)
+        if isinstance(pred, str):
+            #We have a 'S' prediction so ignore it
+            continue
+        else:
+            predictions[mutation] = pred
 
+    return merge_predictions(predictions, catalogue)
+
+
+def merge_predictions(predictions: {str: {str: str}}, catalogue) -> {str: str}:
+    '''When multi-mutations do not have a hit, they are decomposed and individuals are tried instead
+    This merges these predictions based on the prioritisation defined for this catalogue
+
+    Args:
+        predictions ({str: {str: str}}): Dictionary mapping mutation -> effects for each mutation in the multi
+        catalogue (named tuple): The catalogue object (for finding the values)
+    Returns:
+        {str: str}: Merged effects
+    '''
+    #Pull out all of the drugs which have predictions
+    drugs = set()
+    for pred in predictions:
+        for drug in predictions[pred].keys():
+            drugs.add(drug)
+
+    #Default to 'S' for now
+    merged = {drug: 'S' for drug in drugs}
+
+    #Look for all predictions for each drug, and report the most significant
+    for drug in drugs:
+        for mutation in predictions.keys():
+            #Get the prediction for this drug (if exists)
+            pred = predictions[mutation].get(drug, None)
+            if pred is None:
+                #No prediction here
+                continue
+            if catalogue.values.index(pred) <= catalogue.values.index(merged[drug]):
+                #New highest priority, so set the prediction
+                merged[drug] = pred
+    
+    #If we have >=1 non-'S' prediction, return the dict
+    if len([key for key in merged.keys() if merged[key] != 'S']) > 0:
+        return {drug: merged[drug] for drug in merged.keys() if merged[drug]!='S'}
+
+    #Else give the default 'S'
+    return 'S'
 
 def row_prediction(rows, predictions, priority, message, verbose=False):
     '''Get the predictions from the catalogue for the applicable rows
