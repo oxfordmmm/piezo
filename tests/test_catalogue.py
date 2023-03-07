@@ -16,7 +16,7 @@ def test_catalogue__init__():
 
     assert test.catalogue.grammar=="GARC1"
 
-    assert test.catalogue.number_rows==38
+    assert test.catalogue.number_rows==39
 
     assert test.catalogue.drugs==['DRUG_A','DRUG_B']
 
@@ -135,10 +135,60 @@ def test_catalogue_prediction_indels():
 
 def test_multi():
     #Exact match with 2 lines of the catalogue
-    assert test.predict("M2@G74!&M2@G740") == {"DRUG_A": "U", "DRUG_B": "R"}
+    assert test.predict("M2@G74!&M2@G74X") == {"DRUG_A": "U", "DRUG_B": "R"}
 
     #Should hit an 'S' (and 'U' default) and an 'R'
     assert test.predict("M2@F75T&M2@G74P") == {"DRUG_A": 'R', "DRUG_B": 'U'}
 
     #Should hit an 'F' and an 'R' (and 'U' default)
     assert test.predict("M2@L73Z&M2@G74P") == {"DRUG_A": 'R', 'DRUG_B': 'U'}
+
+def test_minor_population():
+    #COV
+    #Exact match
+    assert test.predict("M2@F75V:2") == {"DRUG_A": "R", "DRUG_B": "U"}
+
+    #Greater than
+    assert test.predict("M2@F75V:3") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test.predict("M2@F75V:4") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test.predict("M2@F75V:350") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test.predict("M2@F75V:123456789123456789") == {"DRUG_A": "R", "DRUG_B": "U"}
+
+    #Less than (so should just hit a default for now)
+    assert test.predict("M2@F75V:1") == {"DRUG_A": "U", "DRUG_B": "U"}
+
+    #Should fail
+    with pytest.raises(Exception):
+        test.predict("M2@F75V:0")
+    with pytest.raises(Exception):
+        test.predict("M2@F75V:-1")
+
+    #Multi
+    assert test.predict("M2@45_del_aaa&M2@F75V:5") == {"DRUG_A": 'R', 'DRUG_B': 'U'}
+    assert test.predict("M2@45_del_a&M2@F75V:3") == {"DRUG_A": 'R', 'DRUG_B': 'R'}
+
+    #FRS
+    test2 = piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-FRS.csv")
+
+    #Exact match
+    assert test2.predict("M2@F75V:0.03") == {"DRUG_A": "R", "DRUG_B": "U"}
+
+    #Greater than
+    assert test2.predict("M2@F75V:0.04") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test2.predict("M2@F75V:0.05") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test2.predict("M2@F75V:0.9") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test2.predict("M2@F75V:0.123456789123456789") == {"DRUG_A": "R", "DRUG_B": "U"}
+
+    #Less than (so should just hit a default for now)
+    assert test2.predict("M2@F75V:0.01") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test2.predict("M2@F75V:0.02") == {"DRUG_A": "U", "DRUG_B": "U"}
+
+    #Should fail
+    with pytest.raises(Exception):
+        test2.predict("M2@F75V:0.0")
+    with pytest.raises(Exception):
+        test2.predict("M2@F75V:-0.1")
+    
+    assert test2.predict("M2@45_del_aaa&M2@F75V:0.5") == {"DRUG_A": 'R', 'DRUG_B': 'U'}
+    assert test2.predict("M2@45_del_a&M2@F75V:0.03") == {"DRUG_A": 'R', 'DRUG_B': 'R'}
+

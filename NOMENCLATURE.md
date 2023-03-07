@@ -207,6 +207,35 @@ Utilising this logic, we can produce the following rules:
 
 As such, it is recommended that any synonymous mutations are treated as such when parsing into GARC.
 
+### Minor populations
+
+GARC also allows for specification of a mutation being a minor population/minor allele. 
+E.g if a VCF has a row detailing coverage `98,2` with a `0/0` call, the call is a reference call, but there is also some evidence of an alt call (2 reads supporting this).
+
+In cases in which there are multiple minor population calls within a single codon (e.g we have minor calls for bases 1 and 2 of a codon), the coverage reported for the amino acid mutation should be the lowest of the two.
+
+**NOTE:** Any minor call will hit default rules if no specific rule exists for it.
+
+These can be conveyed in one of two ways:
+
+#### Coverage
+
+Mutations can be defined by the number of reads which support this call:
+`rpoB@S450L:2` has exactly 2 reads supporting a mutation call of `rpoB@S450L`
+
+#### Fractional read support
+
+Mutations can also use FRS rather than coverage to support minor population calls. FRS is the fraction of all reads for this base which support this call: `reads supporting / total reads at this base`. In the above example, the FRS interpretation would be `rpoB@S450L:0.02`
+
+**NOTE:** For consistency, it is recommended to only utilise one of these representations in a catalogue. `gumpy` is capable of generating mutations in both formats, but a catalogue of mixed coverage and FRS may cause some issues.
+
+#### Minor multi-mutations
+
+As a minor population's muttion is a valid mutation in GARC, according to the `multi-mutation` rule, they can be chained together to provide a highly specific mutation.
+
+This may look like `rpoB@S450L:2&rpoB@A451V:3`
+
+
 ## Backus–Naur form (BNF)
 ### Catalogue BNF
 This is a definition of the grammar acceptable to use within a catalogue.
