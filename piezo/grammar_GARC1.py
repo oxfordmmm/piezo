@@ -1,8 +1,25 @@
 #! /usr/bin/env python
+'''All logic required to parse and generate predictions from a catalogue in GARC1
+'''
+
+import collections
 
 import pandas
 
-def split_mutation(row):
+
+def split_mutation(row: pandas.Series) -> pandas.Series:
+    '''Take a row of the catalogue and get info about the mutation from it.
+    This includes the type, ref, alt, position and minor populations
+
+    Args:
+        row (pandas.Series): Catalogue row
+
+    Raises:
+        ValueError: Raised when mutations are malformed
+
+    Returns:
+        pandas.Series: Series about the mutation. In order: gene, mutation, position, type of position (i.e PROM/CDS), mutation type (i.e INDEL/SNP/MULTI), support for minor populations
+    '''
     if '&' in row['MUTATION']:
         #Multi-mutation so don't try to split it out in the same way
         gene = 'MULTI'
@@ -74,14 +91,20 @@ def split_mutation(row):
     return pandas.Series([gene,mutation,position,mutation_affects,mutation_type, minor])
 
 
-def process_catalogue_GARC1(rules,drugs,catalogue_genes_only):
+def process_catalogue_GARC1(rules: pandas.DataFrame, drugs: [str], catalogue_genes_only: bool) -> (pandas.DataFrame, [str], {str: [str]}, {str: [str]}):
     '''
     For the GARC1 grammar, add some additional columns to the rules dataframe that can be inferred from the mutation.
 
     Args:
-        rules (dataframe): Pandas dataframe of the AMR catalogue in the general form
-        drugs (list): list of drugs in the AMR catalogue
+        rules (pandas.DataFrame): Pandas dataframe of the AMR catalogue in the general form
+        drugs ([str]): list of drugs in the AMR catalogue
         catalogue_genes_only (bool): whether to subset the catalogue down so it ONLY includes (DRUG,GENE) pairs that include at least one row predicting resistance
+    Returns:
+        (pandas.DataFrame, [str], {str: [str]}, {str: [str]}) : Tuple of values. In order:
+                                                                    DataFrame of the rules
+                                                                    List of the genes
+                                                                    Dictionary mapping drug name -> [gene names]
+                                                                    Dictionary mapping gene name -> [drug names]
 
     '''
 
@@ -117,19 +140,19 @@ def process_catalogue_GARC1(rules,drugs,catalogue_genes_only):
         df=rules.loc[rules.DRUG==drug_name]
         drug_lookup[drug_name]=list(df.GENE.unique())
 
-    return(rules,genes,drug_lookup,gene_lookup)
+    return rules, genes, drug_lookup, gene_lookup
 
-def predict_GARC1(catalogue,gene_mutation,verbose):
+def predict_GARC1(catalogue: collections.namedtuple, gene_mutation: str, verbose: bool) -> {str: str}:
     '''
     For the GARC1 grammar, predict the effect of the supplied gene_mutation.
 
     Args:
-        catalogue (named tuple): defines the resistance catalogue
+        catalogue (collections.namedtuple): defines the resistance catalogue
         gene_mutation (str): as specified by the GARC1 grammar, e.g. rpoB_S450L, fabG1_c-15t, ahpC_128_indel
         verbose (bool): whether to be loud
 
     Returns:
-        result: is either a dict with the drugs as keys, or "S" if there are no hits in the catalogue
+        {str: str} | str: Either a dictionary mapping drug name -> predictions or "S" if no hits in the catalogue
     '''
     if '&' in gene_mutation:
         #Multi-gene so treat differently
@@ -151,7 +174,7 @@ def predict_GARC1(catalogue,gene_mutation,verbose):
         minor = None
 
     # parse the mutation to work out what type of mutation it is, where it acts etc
-    (position, mutation_affects, mutation_type, indel_type, indel_length, indel_bases, before, after) = parse_mutation(gene, mutation)
+    (position, mutation_affects, mutation_type, indel_type, indel_length, indel_bases, before, after) = parse_mutation(mutation)
 
     # if the gene isn't in the catalogue, then assume it has no effect
     if gene not in catalogue.genes:
@@ -194,27 +217,27 @@ def predict_GARC1(catalogue,gene_mutation,verbose):
                                     subset_mutation_type_vector, subset_position_vector, verbose, minor)
             elif mutation_type=="INDEL":
                 process_indel_variants(mutation_affects,
-                       predictions, before, after, subset_rules, subset_mutation_type_vector,
+                       predictions, subset_rules, subset_mutation_type_vector,
                        subset_position_vector, indel_length, indel_type, indel_bases, position, verbose, minor)
 
         if not predictions:
             # all mutations should hit at least one of the default entries, so if this doesn't happen, something is wrong
-            raise ValueError("No entry found in the catalogue for "+gene_mutation+compound)
+            raise ValueError("No entry found in the catalogue for "+gene_mutation+" "+compound)
 
         final_prediction=predictions[sorted(predictions)[-1]]
         result[compound]=final_prediction
 
     return(result)
 
-def predict_multi(catalogue, gene_mutation):
+def predict_multi(catalogue: collections.namedtuple, gene_mutation: str) -> {str: str}:
     '''Get the predictions for a given multi-mutation. 
     Mutli-mutations are (currently) a lot stricter than others, and do not support wildcards or subsets of the mutations
 
     Args:
-        catalogue (named tuple): The resistance catalogue
+        catalogue (collections.namedtuple): The resistance catalogue
         gene_mutation (str): String of the mutations, each in GARC, separated by `&`
     Returns:
-        dict | str : Either a dict with drugs as the keys, or 'S' when no predictions in catalogue
+        {str: str} | str : Either a dict with drugs as the keys, or 'S' when no predictions in catalogue
     '''
     #Ensure that the mutations are in a reproducable order
     sorted_mutation = '&'.join(sorted(list(gene_mutation.split('&'))))
@@ -273,15 +296,15 @@ def predict_multi(catalogue, gene_mutation):
     return merge_predictions(predictions, catalogue)
 
 
-def merge_predictions(predictions: {str: {str: str}}, catalogue) -> {str: str}:
+def merge_predictions(predictions: {str: {str: str}}, catalogue: collections.namedtuple) -> {str: str}:
     '''When multi-mutations do not have a hit, they are decomposed and individuals are tried instead
     This merges these predictions based on the prioritisation defined for this catalogue
 
     Args:
         predictions ({str: {str: str}}): Dictionary mapping mutation -> effects for each mutation in the multi
-        catalogue (named tuple): The catalogue object (for finding the values)
+        catalogue (collections.namedtuple): The catalogue object (for finding the values)
     Returns:
-        {str: str}: Merged effects
+        {str: str}: Merged effects dict mapping drug name -> prediction. Or "S" if no matches
     '''
     #Pull out all of the drugs which have predictions
     drugs = set()
@@ -311,15 +334,15 @@ def merge_predictions(predictions: {str: {str: str}}, catalogue) -> {str: str}:
     #Else give the default 'S'
     return 'S'
 
-def row_prediction(rows, predictions, priority, message, minor, verbose=False):
+def row_prediction(rows: pandas.DataFrame, predictions: {int: str}, priority: int, message: str, minor: float, verbose: bool=False) -> None:
     '''Get the predictions from the catalogue for the applicable rows
 
     Args:
         rows (pandas.DataFrame): DataFrame of the rows within the catalogue
-        predictions (dict): Predictions dict
-        priority (int): Priority
-        message (str): Message
-        minor (float): Reads/FRS supporting this, or None if not a minor population
+        predictions (dict): Predictions dict mapping priorities to predictions. This is updated for implict return
+        priority (int): Priority of this mutation type
+        message (str): Message for verbosity
+        minor (float | None): Reads/FRS supporting this, or None if not a minor population
         verbose (bool, optional): Whether to be verbose. Defaults to False.
     '''
     pred = None
@@ -355,17 +378,28 @@ def row_prediction(rows, predictions, priority, message, minor, verbose=False):
         predictions[int(priority)] = str(pred)
 
 
-def process_snp_variants(mutation_affects,
-                         predictions,
-                         before, after,
-                         mutation,
-                         rules,
-                         rules_mutation_type_vector,
-                         rules_position_vector,
-                         verbose,
-                         minor):
-    '''
-    Apply the cascading rules for SNPs, according to the GARC1 grammar.
+def process_snp_variants(mutation_affects: str,
+                         predictions: {int: str},
+                         before: str, after: str,
+                         mutation: str,
+                         rules: pandas.DataFrame,
+                         rules_mutation_type_vector: pandas.Series,
+                         rules_position_vector: pandas.Series,
+                         verbose: bool,
+                         minor: float) -> None:
+    '''Apply cascading rules for SNPs according to GARC
+
+    Args:
+        mutation_affects (str): Where this mutation affects. i.e PROM/CDS
+        predictions ({int: str}): Predictions dictionary mapping priority -> prediction. This is updated for implict return
+        before (str): Reference base/AA
+        after (str): Alt base/AA
+        mutation (str): Mutation in GARC
+        rules (pandas.DataFrame): Rules DataFrame
+        rules_mutation_type_vector (pandas.Series): Series relating to rules for this type of mutation
+        rules_position_vector (pandas.Series): Series relating to rules for this position
+        verbose (bool): Whether to be verbose
+        minor (float | None): Float for supporting evidence of minor populations (or None if not a minor population).
     '''
 
 
@@ -432,21 +466,31 @@ def process_snp_variants(mutation_affects,
     row_prediction(row, predictions, 9, "exact SNP match", minor, verbose)
 
 
-def process_indel_variants(mutation_affects,
-                           predictions,
-                           before, after,
-                           rules,
-                           rules_mutation_type_vector,
-                           rules_position_vector,
-                           indel_length,
-                           indel_type,
-                           indel_bases,
-                           position,
-                           verbose,
-                           minor):
+def process_indel_variants(mutation_affects: str,
+                           predictions: {int: str},
+                           rules: pandas.DataFrame,
+                           rules_mutation_type_vector: pandas.Series,
+                           rules_position_vector: pandas.Series,
+                           indel_length: int,
+                           indel_type: str,
+                           indel_bases: str,
+                           position: int,
+                           verbose: bool,
+                           minor: float) -> None:
+    '''Apply the cascading rules for INDELs in GARC
 
-    '''
-    Apply the cascading rules for INDELs, according to the GARC1 grammar.
+    Args:
+        mutation_affects (str): Which area this mutation affects. i.e PROM/CDS
+        predictions ({int: str}): Dictionary mapping priority -> prediction. This is updated for implict return
+        rules (pandas.DataFrame): Rules DataFrame
+        rules_mutation_type_vector (pandas.Series): Series for the rules which refer to this mutation type
+        rules_position_vector (pandas.Series): Series for the rules which refer to this position
+        indel_length (int): Length of the indel
+        indel_type (str): Type of the indel. i.e ins/del/fs/indel
+        indel_bases (str): Bases inserted/deleted (if applicable)
+        position (int): Position of the indel
+        verbose (bool): Whether to be verbose
+        minor (float): Float for supporting evidence of minor populations (or None if not a minor population)
     '''
 
     # PRIORITY 1: any insertion or deletion in the CDS or PROM (e.g. rpoB_*_indel or rpoB_-*_indel)
@@ -501,7 +545,7 @@ def process_indel_variants(mutation_affects,
         row_prediction(row, predictions, 9, "an insertion of a specified series of nucleotides at a position in the CDS or PROM (e.g. rpoB_1300_ins_ca)", minor, verbose)
 
 
-def parse_mutation(gene,mutation):
+def parse_mutation(mutation: str) -> (str, str, str, str, int, str, str, str):
 
     """
     Take a GENE_MUTATION, and determine what type it is, what it affects etc
@@ -577,17 +621,34 @@ def parse_mutation(gene,mutation):
     if mutation_type=="SNP":
         sanity_check_snp(before,after)
 
-    return(position, mutation_affects, mutation_type, indel_type, indel_length, indel_bases, before, after)
+    return position, mutation_affects, mutation_type, indel_type, indel_length, indel_bases, before, after
 
-def infer_mutation_affects(position):
+def infer_mutation_affects(position: int) -> str:
+    '''Find out which part of the gene this position affects
+
+    Args:
+        position (int): Gene position
+
+    Returns:
+        str: Either "PROM" or "CDS"
+    '''
 
     if position<0:
         mutation_affects="PROM"
     else:
         mutation_affects="CDS"
-    return(mutation_affects)
+    return mutation_affects
 
-def sanity_check_snp(before,after):
+def sanity_check_snp(before: str, after: str) -> None:
+    '''Sanity check that a given SNP is valid. i.e check that the bases are valid
+
+    Args:
+        before (str): Reference bases/AA
+        after (str): Alt bases/AA
+
+    Raises:
+        AssertationError: Raised in cases in which the SNP is invalid.
+    '''
 
     assert after in ['a','c','t','g','x','z','o','?',"!",'A','C','D','E','F','G','H','I','K','L','M','N','O','P','Q','R','S','T','V','W','X','Y','Z'], after+" is not a recognised amino acid or base!"
     assert before in ['a','c','t','g','?','!','A','C','D','E','F','G','H','I','K','L','M','N','P','Q','R','S','T','V','W','Y'], before+" is not a recognised amino acid or base!"
