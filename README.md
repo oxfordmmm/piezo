@@ -32,7 +32,7 @@ The pre-requisites are all fairly standard and are listed in `setup.cfg` so will
 ## Included files
 
 ```
-$ $ ls tests/test-catalogue/
+$ ls tests/test-catalogue/
 NC_004148.2.gbk                    NC_004148.2_TEST_GM1_RFUS_v1.0.csv
 ```
 NC_004148 is the reference genome of the human metapneumovirus and is used primarily for unit testing since it is small and fast to parse.

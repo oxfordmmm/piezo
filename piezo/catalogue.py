@@ -1,12 +1,14 @@
 #! /usr/bin/env python
+'''Instanciate the catalogue
+'''
 
-import os
 import collections
+import os
 
-import pandas, ujson
+import pandas
+import ujson
 
-from piezo.grammar_GARC1 import predict_GARC1
-from piezo.grammar_GARC1 import process_catalogue_GARC1
+from piezo.grammar_GARC1 import predict_GARC1, process_catalogue_GARC1
 
 # define the named tuple that will specify a resistance catalogue
 catalogue = collections.namedtuple('catalogue',
@@ -22,22 +24,47 @@ catalogue = collections.namedtuple('catalogue',
                                       'number_rows',
                                       'rules' ]
                                     )
+
+
 class ResistanceCatalogue:
+    '''Resistance catalogue loading
+    '''
 
-    def __init__(self, catalogue_file, prediction_subset_only=False):
+    def __init__(self, catalogue_file: str, prediction_subset_only: bool=False):
+        '''Construct a resistance catalogue
 
+        Args:
+            catalogue_file (str): Path to the catalogue file
+            prediction_subset_only (bool, optional): Whether to use a subset of genes to only resistance genes. Defaults to False.
+        '''
         self.catalogue = load_catalogue(catalogue_file, prediction_subset_only)
 
-    def predict(self, mutation, verbose=False):
+    def predict(self, mutation: str, verbose: bool=False) -> {str: str}:
+        '''Make a prediction of a mutation's effects based on the catalogue
 
+        Args:
+            mutation (str): Mutation in GARC
+            verbose (bool, optional): Whether to be verbose. Defaults to False.
+
+        Returns:
+            {str: str}: Dictionary mapping drug name -> prediction, or "S" if no matches
+        '''
         return predict(self.catalogue, mutation=mutation, verbose=verbose)
 
-def parse_json(data):
+def parse_json(data: str) -> dict:
+    '''Load the data within a json string to Python dict
+
+    Args:
+        data (str): JSON string
+
+    Returns:
+        dict: Dictionary of the JSON data
+    '''
 
     return ujson.loads(data)
 
 
-def load_catalogue(catalogue_file,prediction_subset_only):
+def load_catalogue(catalogue_file: str, prediction_subset_only: bool) -> collections.namedtuple:
     '''
     Read in the Antimicrobial Resistance Catalogue.
 
@@ -46,10 +73,10 @@ def load_catalogue(catalogue_file,prediction_subset_only):
         prediction_subset_only (bool): whether to subset the catalogue down so it ONLY includes entities (e.g. DRUG,GENE pairs) that include at least one row predicting resistance
 
     Returns:
-        catalogue (named_tuple): defined tuple
+        catalogue (collections.namedtuple): defined tuple
 
     Notes:
-        * Applies checks to ensure the catalogue is in the right format.
+        * Applies checks to ensure the catalogue is in the right format. TODO: Remove assert statements as they should not be used for runtime error checking
     '''
 
 
@@ -106,11 +133,12 @@ def load_catalogue(catalogue_file,prediction_subset_only):
                            number_rows,
                            rules)
 
-def predict(catalogue,mutation,verbose):
+def predict(catalogue: collections.namedtuple, mutation: str, verbose: bool) -> {str: str}:
     '''
     Predict the effect of the given mutation on one or more antimicrobials.
 
     Args:
+        catalogue (collections.namedtuple): The catalogue
         mutation (str): a genetic variant in the form GENE_MUTATION e.g. for a SNP katG_S315T, INDEL katG_315_indel.
         verbose (bool): if True, then a description of the rules that apply to the supplied mutation and their priority is written to STDOUT (default=False)
 
@@ -125,11 +153,11 @@ def predict(catalogue,mutation,verbose):
         * for more info see the walkthrough and also the NOMENCLATURE.md file
     '''
 
-    if catalogue.grammar=="GARC1":
+    if catalogue.grammar == "GARC1":
 
-        result = predict_GARC1(catalogue,mutation,verbose)
+        result = predict_GARC1(catalogue, mutation, verbose)
 
-        return(result)
+        return result
 
     else:
 
