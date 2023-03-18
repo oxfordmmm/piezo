@@ -4,6 +4,7 @@
 
 import collections
 import os
+import warnings
 
 import pandas
 import ujson
@@ -44,11 +45,13 @@ class ResistanceCatalogue:
 
         Args:
             mutation (str): Mutation in GARC
-            verbose (bool, optional): Whether to be verbose. Defaults to False.
+            verbose (bool, optional): Whether to be verbose. Defaults to False. DEPRECIATED
 
         Returns:
             {str: str}: Dictionary mapping drug name -> prediction, or "S" if no matches
         '''
+        if verbose:
+            warnings.warn("`verbose` kwarg is depreciated and will be removed in future.", UserWarning)
         return predict(self.catalogue, mutation=mutation, verbose=verbose)
 
 def parse_json(data: str) -> dict:
@@ -133,14 +136,14 @@ def load_catalogue(catalogue_file: str, prediction_subset_only: bool) -> collect
                            number_rows,
                            rules)
 
-def predict(catalogue: collections.namedtuple, mutation: str, verbose: bool) -> {str: str}:
+def predict(catalogue: collections.namedtuple, mutation: str, verbose: bool=False) -> {str: str}:
     '''
     Predict the effect of the given mutation on one or more antimicrobials.
 
     Args:
         catalogue (collections.namedtuple): The catalogue
         mutation (str): a genetic variant in the form GENE_MUTATION e.g. for a SNP katG_S315T, INDEL katG_315_indel.
-        verbose (bool): if True, then a description of the rules that apply to the supplied mutation and their priority is written to STDOUT (default=False)
+        verbose (bool): if True, then a description of the rules that apply to the supplied mutation and their priority is written to STDOUT (default=False). DEPRECIATED
 
     Returns:
         result (dict): the drugs affected by the mutation are the keys, and the predicted phenotypes are the values. e.g. {'LEV':'R', 'MXF':'R'}
@@ -152,13 +155,7 @@ def predict(catalogue: collections.namedtuple, mutation: str, verbose: bool) -> 
         * "any mutation at position S315" (i.e. a wildcard) is represented by "?" e.g. S315?
         * for more info see the walkthrough and also the NOMENCLATURE.md file
     '''
-
-    if catalogue.grammar == "GARC1":
-
-        result = predict_GARC1(catalogue, mutation, verbose)
-
-        return result
-
-    else:
-
-        raise ValueError("Only the GENE_MUTATION GARC1 grammar is supported at present")
+    if verbose:
+        warnings.warn("`verbose` kwarg is depreciated and will be removed in future.", UserWarning)
+    
+    return predict_GARC1(catalogue, mutation)

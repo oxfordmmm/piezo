@@ -54,6 +54,7 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
 
 
     cols=mutation.split('_')
+    valid = True
 
     if len(cols)==1:
         mutation_type="SNP"
@@ -63,7 +64,7 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
             if int(position)<0:
                 mutation_affects="PROM"
             elif int(position)==0:
-                raise ValueError("a position of 0 in a mutation does not make sense!")
+                valid = False
         except:
             position=cols[0][:-1]
             if position[0]=="-":
@@ -77,16 +78,20 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
             if int(position)<0:
                 mutation_affects="PROM"
             elif int(position)==0:
-                raise ValueError("a position of 0 in a mutation does not make sense!")
+                valid = False
         except:
             try:
                 if position[0]=="-":
                     mutation_affects="PROM"
             except:
-                pass
+                valid = False
 
     else:
-        raise ValueError("badly formed mutation: "+row["MUTATION"])
+        raise ValueError("Badly formed mutation: "+row["MUTATION"])
+    
+    if not valid:
+        #Valid mutation not found, so complain
+        raise ValueError("Badly formed mutation: "+row['MUTATION'])
     
     return pandas.Series([gene,mutation,position,mutation_affects,mutation_type, minor])
 
@@ -142,14 +147,13 @@ def process_catalogue_GARC1(rules: pandas.DataFrame, drugs: [str], catalogue_gen
 
     return rules, genes, drug_lookup, gene_lookup
 
-def predict_GARC1(catalogue: collections.namedtuple, gene_mutation: str, verbose: bool) -> {str: str}:
+def predict_GARC1(catalogue: collections.namedtuple, gene_mutation: str) -> {str: str}:
     '''
     For the GARC1 grammar, predict the effect of the supplied gene_mutation.
 
     Args:
         catalogue (collections.namedtuple): defines the resistance catalogue
         gene_mutation (str): as specified by the GARC1 grammar, e.g. rpoB_S450L, fabG1_c-15t, ahpC_128_indel
-        verbose (bool): whether to be loud
 
     Returns:
         {str: str} | str: Either a dictionary mapping drug name -> predictions or "S" if no hits in the catalogue
@@ -183,10 +187,6 @@ def predict_GARC1(catalogue: collections.namedtuple, gene_mutation: str, verbose
     # find out the drugs to which changes in this gene can confer resistance
     drugs=catalogue.gene_lookup[gene]
 
-    # if there aren't any just return an S again
-    if drugs is None:
-        return("S")
-
     # create the result dictionary e.g. {"RIF":'R', "RFB":'R'}
     # most of the time the predictions will be identical, but this allows them to diverge in future
     result={}
@@ -214,11 +214,11 @@ def predict_GARC1(catalogue: collections.namedtuple, gene_mutation: str, verbose
 
             if mutation_type=="SNP":
                 process_snp_variants(mutation_affects, predictions, before, after, mutation, subset_rules,\
-                                    subset_mutation_type_vector, subset_position_vector, verbose, minor)
+                                    subset_mutation_type_vector, subset_position_vector, minor)
             elif mutation_type=="INDEL":
                 process_indel_variants(mutation_affects,
                        predictions, subset_rules, subset_mutation_type_vector,
-                       subset_position_vector, indel_length, indel_type, indel_bases, position, verbose, minor)
+                       subset_position_vector, indel_length, indel_type, indel_bases, position, minor)
 
         if not predictions:
             # all mutations should hit at least one of the default entries, so if this doesn't happen, something is wrong
@@ -257,7 +257,6 @@ def predict_multi(catalogue: collections.namedtuple, gene_mutation: str) -> {str
             drug = rule['DRUG']
             if values.index(rule['PREDICTION']) < values.index(drugs[drug]):
                 #The prediction is closer to the start of the values list, so should take priority
-
                 #Check for minor populations first though
                 for (cat, minor) in zip(rule['MINOR'].split(","), minors):
                     if minor is None and cat == '':
@@ -286,7 +285,7 @@ def predict_multi(catalogue: collections.namedtuple, gene_mutation: str) -> {str
             mutation = mutation + ":" + str(minor)
 
         #Get the prediction for the mutation
-        pred = predict_GARC1(catalogue, mutation, False)
+        pred = predict_GARC1(catalogue, mutation)
         if isinstance(pred, str):
             #We have a 'S' prediction so ignore it
             continue
@@ -319,10 +318,7 @@ def merge_predictions(predictions: {str: {str: str}}, catalogue: collections.nam
     for drug in drugs:
         for mutation in predictions.keys():
             #Get the prediction for this drug (if exists)
-            pred = predictions[mutation].get(drug, None)
-            if pred is None:
-                #No prediction here
-                continue
+            pred = predictions[mutation][drug]
             if catalogue.values.index(pred) <= catalogue.values.index(merged[drug]):
                 #New highest priority, so set the prediction
                 merged[drug] = pred
@@ -334,24 +330,20 @@ def merge_predictions(predictions: {str: {str: str}}, catalogue: collections.nam
     #Else give the default 'S'
     return 'S'
 
-def row_prediction(rows: pandas.DataFrame, predictions: {int: str}, priority: int, message: str, minor: float, verbose: bool=False) -> None:
+def row_prediction(rows: pandas.DataFrame, predictions: {int: str}, priority: int, minor: float) -> None:
     '''Get the predictions from the catalogue for the applicable rows
 
     Args:
         rows (pandas.DataFrame): DataFrame of the rows within the catalogue
         predictions (dict): Predictions dict mapping priorities to predictions. This is updated for implict return
         priority (int): Priority of this mutation type
-        message (str): Message for verbosity
         minor (float | None): Reads/FRS supporting this, or None if not a minor population
-        verbose (bool, optional): Whether to be verbose. Defaults to False.
     '''
     pred = None
     values = ['R', 'U', 'F', 'S', None]
     for _, row in rows.iterrows():
         if not row.empty:
             assert int(priority) in range (1,11), 'priority must be an integer in range 1,2..10'
-            if verbose:
-                print(str(int(priority)),str(row["PREDICTION"]), message)
             if values.index(row['PREDICTION']) < values.index(pred):
                 #This row's prediction is more important than the current, so check for minors and prioritise
                 if minor is None and row['MINOR'] == '':
@@ -385,7 +377,6 @@ def process_snp_variants(mutation_affects: str,
                          rules: pandas.DataFrame,
                          rules_mutation_type_vector: pandas.Series,
                          rules_position_vector: pandas.Series,
-                         verbose: bool,
                          minor: float) -> None:
     '''Apply cascading rules for SNPs according to GARC
 
@@ -398,7 +389,6 @@ def process_snp_variants(mutation_affects: str,
         rules (pandas.DataFrame): Rules DataFrame
         rules_mutation_type_vector (pandas.Series): Series relating to rules for this type of mutation
         rules_position_vector (pandas.Series): Series relating to rules for this position
-        verbose (bool): Whether to be verbose
         minor (float | None): Float for supporting evidence of minor populations (or None if not a minor population).
     '''
 
@@ -409,45 +399,55 @@ def process_snp_variants(mutation_affects: str,
 
         # PRIORITY=1: synonymous mutation at any position in the CDS (e.g. rpoB_*=)
         row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*=")]
-        row_prediction(row, predictions, 1, "syn SNP at any position in the CDS", minor, verbose)
+        #syn SNP at any position in the CDS
+        row_prediction(row, predictions, 1, minor)
 
     elif before!=after:
 
         # PRIORITY=2: nonsynoymous mutation at any position in the CDS or PROM (e.g. rpoB_*? or rpoB_-*?)
         if mutation_affects=="CDS":
             row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*?")]
-            row_prediction(row, predictions, 2, "nonsyn SNP at any position in the CDS", minor, verbose)
+            #nonsyn SNP at any position in the CDS
+            row_prediction(row, predictions, 2, minor)
         else:
             row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*?")]
-            row_prediction(row, predictions, 2, "nonsyn SNP at any position in the PROM", minor, verbose)
+            #nonsyn SNP at any position in the PROM
+            row_prediction(row, predictions, 2, minor)
         # PRIORITY=3: het mutation at any position in the CDS or PROM (e.g. rpoB_*Z or rpoB_-*z)
         if mutation[-1] in ['Z','z','O','o','X','x']:
             if mutation_affects=="CDS":
                 if (mutation[-1]=="Z"):
                     row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION=="*Z")]
-                    row_prediction(row, predictions, 3, "het SNP at any position in the CDS", minor, verbose)
+                    #het SNP at any position in the CDS
+                    row_prediction(row, predictions, 3, minor)
                 elif (mutation[-1]=="O"):
                     row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION=="*O")]
-                    row_prediction(row, predictions, 3, "filter fail at any position in the CDS", minor, verbose)
+                    #filter fail at any position in the CDS
+                    row_prediction(row, predictions, 3, minor)
                 elif (mutation[-1]=="X"):
                     row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION=="*X")]
-                    row_prediction(row, predictions, 3, "null at any position in the CDS", minor, verbose)
+                    #null at any position in the CDS
+                    row_prediction(row, predictions, 3, minor)
             else:
                 if mutation[-1]=="z":
                     row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*z")]
-                    row_prediction(row, predictions, 3, "het SNP at any position in the PROM", minor, verbose)
+                    #het SNP at any position in the PROM
+                    row_prediction(row, predictions, 3, minor)
                 elif mutation[-1]=='o':
                     row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*o")]
-                    row_prediction(row, predictions, 3, "filter fail at any position in the PROM", minor, verbose)
+                    #filter fail at any position in the PROM
+                    row_prediction(row, predictions, 3, minor)
                 elif mutation[-1]=='x':
                     row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*x")]
-                    row_prediction(row, predictions, 3, "null at any position in the PROM", minor, verbose)
+                    #null at any position in the PROM
+                    row_prediction(row, predictions, 3, minor)
 
         # PRIORITY=4: specific mutation at any position in the CDS: only Stop codons make sense for now (e.g. rpoB_*!)
         if mutation[-1] in ['!']:
             if mutation_affects=="CDS":
                 row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*!")]
-                row_prediction(row, predictions, 4, "stop codon at any position in the CDS", minor, verbose)
+                #stop codon at any position in the CDS
+                row_prediction(row, predictions, 4, minor)
 
         # PRIORITY=5: no change at specific position
         # PRIORITY=6: synonymous mutations at specific location (usually picked up by e.g. L202L, rather than L202=)
@@ -455,15 +455,18 @@ def process_snp_variants(mutation_affects: str,
         # PRIORITY=7: any het mutation at this specific position in the CDS or PROM  (e.g. rpoB_S450Z or rpoB_c-15z)
         if mutation[-1] in ["Z","z"]:
             row=rules.loc[(rules_mutation_type_vector) & (rules_position_vector) & (rules.MUTATION.str[-1].isin(['Z','z']))]
-            row_prediction(row, predictions, 7, "het SNP at specified position in the CDS", minor, verbose)
+            #het SNP at specified position in the CDS
+            row_prediction(row, predictions, 7, minor)
 
         # PRIORITY=8: any nonsynoymous mutation at this specific position in the CDS or PROM  (e.g. rpoB_S450? or rpoB_c-15?)
         row=rules.loc[rules_mutation_type_vector & rules_position_vector & (rules.MUTATION.str[-1]=="?")]
-        row_prediction(row, predictions, 8, "nonsyn SNP at specified position in the CDS", minor, verbose)
+        #nonsyn SNP at specified position in the CDS
+        row_prediction(row, predictions, 8, minor)
 
     # PRIORITY=9: an exact match
     row=rules.loc[(rules_mutation_type_vector) & (rules.MUTATION==mutation)]
-    row_prediction(row, predictions, 9, "exact SNP match", minor, verbose)
+    #exact SNP match
+    row_prediction(row, predictions, 9, minor)
 
 
 def process_indel_variants(mutation_affects: str,
@@ -475,7 +478,6 @@ def process_indel_variants(mutation_affects: str,
                            indel_type: str,
                            indel_bases: str,
                            position: int,
-                           verbose: bool,
                            minor: float) -> None:
     '''Apply the cascading rules for INDELs in GARC
 
@@ -489,7 +491,6 @@ def process_indel_variants(mutation_affects: str,
         indel_type (str): Type of the indel. i.e ins/del/fs/indel
         indel_bases (str): Bases inserted/deleted (if applicable)
         position (int): Position of the indel
-        verbose (bool): Whether to be verbose
         minor (float): Float for supporting evidence of minor populations (or None if not a minor population)
     '''
 
@@ -498,14 +499,16 @@ def process_indel_variants(mutation_affects: str,
         row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*_indel")]
     else:
         row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*_indel")]
-    row_prediction(row, predictions, 1, "any insertion or deletion in the CDS or PROM", minor, verbose)
+    #any insertion or deletion in the CDS or PROM
+    row_prediction(row, predictions, 1, minor)
 
     # PRIORITY 2: rpoB_*_ins, rpoB_*_del any insertion (or deletion) in the CDS or PROM
     if mutation_affects == "CDS":
         row=rules.loc[rules_mutation_type_vector & (rules.MUTATION.isin(["*_ins","*_del"]))]
     else:
         row=rules.loc[rules_mutation_type_vector & (rules.MUTATION.isin(["-*_ins","-*_del"]))]
-    row_prediction(row, predictions, 2, "any insertion (or deletion) in the CDS or PROM", minor, verbose)
+    #any insertion (or deletion) in the CDS or PROM
+    row_prediction(row, predictions, 2, minor)
 
     # PRIORITY 3: any insertion of a specified length (or deletion) in the CDS or PROM (e.g. rpoB_*_ins_2, rpoB_*_del_3, rpoB_-*_ins_1, rpoB_-*_del_200)
     if indel_length is not None and indel_type!="indel":
@@ -513,36 +516,43 @@ def process_indel_variants(mutation_affects: str,
             row=rules.loc[rules_mutation_type_vector & (rules.MUTATION.isin(["*_"+indel_type+"_"+str(indel_length)]))]
         else:
             row=rules.loc[rules_mutation_type_vector & (rules.MUTATION.isin(["-*_"+indel_type+"_"+str(indel_length)]))]
-        row_prediction(row, predictions, 3, "any insertion of a specified length (or deletion) in the CDS or PROM", minor, verbose)
+        #any insertion of a specified length (or deletion) in the CDS or PROM
+        row_prediction(row, predictions, 3, minor)
 
     # PRIORITY=4: any frameshifting insertion or deletion in the CDS (e.g. rpoB_*_fs)
     if indel_length is not None and (indel_length%3)!=0:
         row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*_fs")]
-        row_prediction(row, predictions, 4, "any frameshifting insertion or deletion in the CDS", minor, verbose)
+        #any frameshifting insertion or deletion in the CDS
+        row_prediction(row, predictions, 4, minor)
 
     # PRIORITY=5: any indel at a specific position in the CDS or PROM (e.g. rpoB_1300_indel or rpoB_-15_indel)
     row=rules.loc[rules_mutation_type_vector & rules_position_vector & (rules.MUTATION.str.contains("indel"))]
-    row_prediction(row, predictions, 5, "any indel at a specific position in the CDS or PROM (e.g. rpoB_1300_indel or rpoB_-15_indel)", minor, verbose)
+    #any indel at a specific position in the CDS or PROM (e.g. rpoB_1300_indel or rpoB_-15_indel)
+    row_prediction(row, predictions, 5, minor)
 
     # PRIORITY=6: an insertion (or deletion) at a specific position in the CDS or PROM (e.g. rpoB_1300_ins or rpoB_-15_del)
     if indel_type!="indel":
         row=rules.loc[rules_mutation_type_vector & rules_position_vector & (rules.MUTATION.str.contains(indel_type))]
-        row_prediction(row, predictions, 6, "any insertion (or deletion) at a specific position in the CDS or PROM (e.g. rpoB_1300_ins or rpoB_-15_del)", minor, verbose)
+        #any insertion (or deletion) at a specific position in the CDS or PROM (e.g. rpoB_1300_ins or rpoB_-15_del)
+        row_prediction(row, predictions, 6, minor)
 
     # PRIORITY=7: an insertion (or deletion) of a specified length at a specific position in the CDS or PROM (e.g. rpoB_1300_ins_2 or rpoB_-15_del_200)
     if indel_type!="indel" and indel_length is not None:
         row=rules.loc[rules_mutation_type_vector & rules_position_vector & (rules.MUTATION==str(position)+"_"+indel_type+"_"+str(indel_length))]
-        row_prediction(row, predictions, 7, "an insertion (or deletion) of a specified length at a specific position in the CDS or PROM (e.g. rpoB_1300_ins_2 or rpoB_-15_del_200)", minor, verbose)
+        #an insertion (or deletion) of a specified length at a specific position in the CDS or PROM (e.g. rpoB_1300_ins_2 or rpoB_-15_del_200)
+        row_prediction(row, predictions, 7, minor)
 
     # PRIORITY=8: a frameshifting mutation at a specific position in the CDS (e.g. rpoB_100_fs)
     if indel_length is not None and (indel_length%3)!=0 and position is not None:
         row=rules.loc[rules_mutation_type_vector & rules_position_vector & (rules.MUTATION==str(position)+"_fs")]
-        row_prediction(row, predictions, 8, "a frameshifting mutation at a specific position in the CDS (e.g. rpoB_100_fs)", minor, verbose)
+        #a frameshifting mutation at a specific position in the CDS (e.g. rpoB_100_fs)
+        row_prediction(row, predictions, 8, minor)
 
     # PRIORITY=9: an insertion of a specified series of nucleotides at a position in the CDS or PROM (e.g. rpoB_1300_ins_ca)
     if indel_type=="ins" and indel_length is not None and indel_bases is not None:
         row=rules.loc[rules_mutation_type_vector & rules_position_vector & (rules.MUTATION==str(position)+"_ins_"+indel_bases)]
-        row_prediction(row, predictions, 9, "an insertion of a specified series of nucleotides at a position in the CDS or PROM (e.g. rpoB_1300_ins_ca)", minor, verbose)
+        #an insertion of a specified series of nucleotides at a position in the CDS or PROM (e.g. rpoB_1300_ins_ca)
+        row_prediction(row, predictions, 9, minor)
 
 
 def parse_mutation(mutation: str) -> (str, str, str, str, int, str, str, str):

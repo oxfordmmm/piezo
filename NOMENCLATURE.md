@@ -292,7 +292,6 @@ Due to wildcards not being intended for use for prediction (i.e it doesn't make 
                <gene-name>"@"<pos>"_del" |
                <gene-name>"@"<pos>"_indel" |
                <gene-name>"@"<pos>"_fs" |
-               <mutation>"&"<mutation>
 
 <pos> ::= <number> | "-"<number>
 
