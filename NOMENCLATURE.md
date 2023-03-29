@@ -256,7 +256,9 @@ Where `<gene-name>` is any valid gene or locus name (usually matching the regex 
                <gene-name>"@"<pos-wildcard><wildcard> |
                <gene-name>"@"<nucleotide><pos>"?" |
                <gene-name>"@"<amino-acid><number>"?" |
-               <gene-name>"@"<positive-position>"="
+               <gene-name>"@"<positive-position>"=" |
+               <gene-name>"@"del_0."<number> |
+               <gene-name>"@"del_1.0"
 
 <wildcard> ::= "?" | "="
 
@@ -292,7 +294,9 @@ Due to wildcards not being intended for use for prediction (i.e it doesn't make 
                <gene-name>"@"<pos>"_del" |
                <gene-name>"@"<pos>"_indel" |
                <gene-name>"@"<pos>"_fs" |
-
+               <gene-name>"@"del_0."<number> |
+               <gene-name>"@"del_1.0"
+               
 <pos> ::= <number> | "-"<number>
 
 <nucleotides> ::= <nucleotide> | <nucleotide><nucleotide>
