@@ -364,13 +364,13 @@ def row_prediction(rows: pandas.DataFrame, predictions: {int: str}, priority: in
                     #Neither are minor populations so act normally
                     pred = row['PREDICTION']
 
-                elif row['MINOR'] != '' and minor < 1 and float(row['MINOR']) < 1:
+                elif minor is not None and row['MINOR'] != '' and minor < 1 and float(row['MINOR']) < 1:
                     #We have FRS
                     if minor >= float(row['MINOR']):
                         #Match
                         pred = row['PREDICTION']
 
-                elif row['MINOR'] != '' and minor >= 1 and float(row['MINOR']) >= 1:
+                elif minor is not None and row['MINOR'] != '' and minor >= 1 and float(row['MINOR']) >= 1:
                     #We have COV
                     if minor >= float(row['MINOR']):
                         #Match
