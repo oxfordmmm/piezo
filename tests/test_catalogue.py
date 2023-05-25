@@ -31,7 +31,7 @@ def test_catalogue__init__(test_catalogue, genes, gene_lookup):
 
     assert test_catalogue.catalogue.grammar=="GARC1"
 
-    assert test_catalogue.catalogue.number_rows == 42
+    assert test_catalogue.catalogue.number_rows == 45
 
     assert test_catalogue.catalogue.drugs==['DRUG_A','DRUG_B']
 
@@ -94,6 +94,17 @@ def test_catalogue_prediction_snps(test_catalogue):
 
     # check that a gene not in the catalogue simply returns an "S"
     assert test_catalogue.predict("N1@S2T")=="S"
+
+    #Checking large deletions
+    assert test_catalogue.predict("M2@del_1.0") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.9") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.85") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.8") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.5") == {"DRUG_A": "U", "DRUG_B": "U"}
+
+    with pytest.raises(Exception):
+        assert test_catalogue.predict("M2@del_0.5s") == {"DRUG_A": "U", "DRUG_B": "U"}
 
     # bad prediction
     with pytest.raises(Exception):
@@ -268,5 +279,22 @@ def test_misc():
     #Checking for deprication warnings
     with pytest.warns(UserWarning):
         test_catalogue.predict("M2@L73P", verbose=True)
+    
+    #Minor edge cases of large dels
+    test_catalogue = piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-minor-COV.csv")
+    assert test_catalogue.predict("M2@del_1.0") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.9:3") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.85:10") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.8:1") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.5") == {"DRUG_A": "U", "DRUG_B": "U"}
+
+    test_catalogue = piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-minor-FRS.csv")
+    assert test_catalogue.predict("M2@del_1.0") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.9:0.3") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.85:0.99") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.8:0.01") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.5:0.03") == {"DRUG_A": "U", "DRUG_B": "U"}
 
 

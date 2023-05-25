@@ -3,6 +3,7 @@
 '''
 
 import collections
+import re
 
 import pandas
 
@@ -72,19 +73,32 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
 
     elif len(cols) in [2,3]:
         mutation_type="INDEL"
-        mutation_affects="CDS"
-        position=cols[0]
-        try:
-            if int(position)<0:
-                mutation_affects="PROM"
-            elif int(position)==0:
-                valid = False
-        except:
+        percentage = False
+        if len(cols) == 2:
+            #Checking for percentage deletions (of form "del_<percent>")
             try:
-                if position[0]=="-":
+                float(cols[1])
+                percentage = True
+            except ValueError:
+                percentage = False
+            if percentage:
+                position = None
+        if percentage:
+            mutation_affects = "GENE"
+        else:
+            mutation_affects = "CDS"
+            position=cols[0]
+            try:
+                if int(position)<0:
                     mutation_affects="PROM"
+                elif int(position)==0:
+                    valid = False
             except:
-                valid = False
+                try:
+                    if position[0]=="-":
+                        mutation_affects="PROM"
+                except:
+                    valid = False
 
     else:
         raise ValueError("Badly formed mutation: "+row["MUTATION"])
@@ -350,13 +364,13 @@ def row_prediction(rows: pandas.DataFrame, predictions: {int: str}, priority: in
                     #Neither are minor populations so act normally
                     pred = row['PREDICTION']
 
-                elif row['MINOR'] != '' and minor < 1 and float(row['MINOR']) < 1:
+                elif minor is not None and row['MINOR'] != '' and minor < 1 and float(row['MINOR']) < 1:
                     #We have FRS
                     if minor >= float(row['MINOR']):
                         #Match
                         pred = row['PREDICTION']
 
-                elif row['MINOR'] != '' and minor >= 1 and float(row['MINOR']) >= 1:
+                elif minor is not None and row['MINOR'] != '' and minor >= 1 and float(row['MINOR']) >= 1:
                     #We have COV
                     if minor >= float(row['MINOR']):
                         #Match
@@ -368,6 +382,49 @@ def row_prediction(rows: pandas.DataFrame, predictions: {int: str}, priority: in
                         pred = row['PREDICTION']
     if pred:
         predictions[int(priority)] = str(pred)
+
+def large_del(predictions: {int: str}, rules: pandas.DataFrame, size: float, minor: float) -> None:
+    '''Row prediction, but specifically for large deletions
+
+    Args:
+        predictions ({int: str}): Predictions dictionary
+        rules (pandas.DataFrame): Rules from the catalogue
+        size (float): Percentage of the gene deleted (as a decimal)
+        minor (float): Minors (if existing)
+    '''
+    pred = None
+    current = -1
+    #Find which rules are large deletions and see if the mutation is >= rule
+    deletion = re.compile(r"""del_([01]\.[0-9]+)""")
+    for _, rule in rules.iterrows():
+        if deletion.fullmatch(rule['MUTATION']):
+            percentage = float(deletion.fullmatch(rule['MUTATION']).groups()[0])
+            if size >= percentage and percentage > current:
+                #Match!
+                if minor is None and rule['MINOR'] == '':
+                    #Neither are minor populations so act normally
+                    pred = rule['PREDICTION']
+                    current = percentage
+                elif minor is not None and rule['MINOR'] != '' and minor < 1 and float(rule['MINOR']) < 1:
+                    #We have FRS
+                    if minor >= float(rule['MINOR']):
+                        #Match
+                        pred = rule['PREDICTION']
+                        current = percentage
+
+                elif minor is not None and rule['MINOR'] != '' and minor >= 1 and float(rule['MINOR']) >= 1:
+                    #We have COV
+                    if minor >= float(rule['MINOR']):
+                        #Match
+                        pred = rule['PREDICTION']
+                        current = percentage
+                else:
+                    #Mismatch so only match default
+                    if rule['MUTATION'] == "del_0.0":
+                        pred = rule['PREDICTION']
+                        current = percentage
+    if pred:
+        predictions[1] = str(pred)
 
 
 def process_snp_variants(mutation_affects: str,
@@ -493,6 +550,9 @@ def process_indel_variants(mutation_affects: str,
         position (int): Position of the indel
         minor (float): Float for supporting evidence of minor populations (or None if not a minor population)
     '''
+    if mutation_affects == "GENE":
+        #Large deletions are priority 1
+        large_del(predictions, rules.loc[rules_mutation_type_vector], indel_length, minor)
 
     # PRIORITY 1: any insertion or deletion in the CDS or PROM (e.g. rpoB_*_indel or rpoB_-*_indel)
     if mutation_affects == "CDS":
@@ -601,29 +661,43 @@ def parse_mutation(mutation: str) -> (str, str, str, str, int, str, str, str):
         after=mutation[-1]
 
     elif len(cols) in [2,3]:
-
         mutation_type="INDEL"
-
-        position=int(cols[0])
-
-        mutation_affects=infer_mutation_affects(position)
-
-        # the third element is one of indel, ins, del or the special case fs
-        indel_type=cols[1]
-
-        assert indel_type in ['indel','ins','del','fs'], "form of indel not recognised: "+indel_type
-
-        # if there is a fourth and final element to an INDEL it is either _4 or _ctgc
-        if len(cols)==3:
-            assert indel_type in ['ins','del'], "form of indel does not make sense when length or bases specified!: "+indel_type
+        #Checking for large deletions
+        percentage = False
+        if cols[0] == "del":
             try:
-                indel_length=int(cols[2])
-            except:
-                indel_length=len(cols[2])
-                indel_bases=cols[2]
-                assert 0 not in [c in ['a','t','c','g','z','x'] for c in indel_bases], "only nucleotides of a,t,c,g,z,x are allowed!"
+                float(cols[1])
+                percentage = True
+            except ValueError:
+                percentage = False
 
-            assert indel_length>0, "makes no sense to have a negative indel length! "+cols[2]
+        if percentage:
+            mutation_affects = "GENE"
+            indel_type = "del"
+            indel_length = float(cols[1])
+        else:
+            try:
+                position = int(cols[0])
+            except ValueError:
+                assert False, "Invalid mutation: " + mutation
+            mutation_affects=infer_mutation_affects(position)
+
+            # the third element is one of indel, ins, del or the special case fs
+            indel_type=cols[1]
+
+            assert indel_type in ['indel','ins','del','fs'], "form of indel not recognised: "+indel_type
+
+            # if there is a fourth and final element to an INDEL it is either _4 or _ctgc
+            if len(cols)==3:
+                assert indel_type in ['ins','del'], "form of indel does not make sense when length or bases specified!: "+indel_type
+                try:
+                    indel_length=int(cols[2])
+                except:
+                    indel_length=len(cols[2])
+                    indel_bases=cols[2]
+                    assert 0 not in [c in ['a','t','c','g','z','x'] for c in indel_bases], "only nucleotides of a,t,c,g,z,x are allowed!"
+
+                assert indel_length>0, "makes no sense to have a negative indel length! "+cols[2]
 
     assert mutation_type in ['INDEL','SNP'], "form of mutation_type not recognised: "+mutation_type
 
