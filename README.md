@@ -29,6 +29,9 @@ pip install .
 ```
 The pre-requisites are all fairly standard and are listed in `setup.cfg` so will be automatically installed.
 
+## Documentation
+API documentation for developers can be found here: https://oxfordmmm.github.io/piezo/
+
 ## Included files
 
 ```

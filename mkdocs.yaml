@@ -16,6 +16,7 @@ theme:
 nav:
   - Home: readme.md
   - Code Reference: reference/
+  - Nomenclature: nomenclature.md
 
 extra:
   version:
