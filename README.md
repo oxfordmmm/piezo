@@ -1,6 +1,6 @@
 [![Tests](https://github.com/oxfordmmm/piezo/actions/workflows/tests.yaml/badge.svg)](https://github.com/oxfordmmm/piezo/actions/workflows/tests.yaml)
 [![codecov](https://codecov.io/gh/oxfordmmm/piezo/branch/master/graph/badge.svg)](https://codecov.io/gh/oxfordmmm/piezo)
-[![Documentation](https://github.com/oxfordmmm/piezo/actions/workflows/pages/pages-build-deployment/badge.svg)](https://github.com/oxfordmmm/piezo/actions/workflows/pages/pages-build-deployment)
+[![Docs](https://github.com/oxfordmmm/piezo/actions/workflows/docs.yaml/badge.svg)](https://oxfordmmm.github.io/piezo/)
 [![PyPI version](https://badge.fury.io/py/piezo.svg)](https://badge.fury.io/py/piezo)
 
 # piezo
