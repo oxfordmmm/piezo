@@ -556,9 +556,9 @@ def process_indel_variants(mutation_affects: str,
 
     # PRIORITY 1: any insertion or deletion in the CDS or PROM (e.g. rpoB_*_indel or rpoB_-*_indel)
     if mutation_affects == "CDS":
-        row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="*_indel")]
+        row=rules.loc[rules_mutation_type_vector & ((rules.MUTATION=="*_indel") | (rules.MUTATION=="*_mixed"))]
     else:
-        row=rules.loc[rules_mutation_type_vector & (rules.MUTATION=="-*_indel")]
+        row=rules.loc[rules_mutation_type_vector & ((rules.MUTATION=="-*_indel") | (rules.MUTATION=="-*mixed"))]
     #any insertion or deletion in the CDS or PROM
     row_prediction(row, predictions, 1, minor)
 
@@ -685,7 +685,7 @@ def parse_mutation(mutation: str) -> (str, str, str, str, int, str, str, str):
             # the third element is one of indel, ins, del or the special case fs
             indel_type=cols[1]
 
-            assert indel_type in ['indel','ins','del','fs'], "form of indel not recognised: "+indel_type
+            assert indel_type in ['indel','ins','del','fs', 'mixed'], "form of indel not recognised: "+indel_type
 
             # if there is a fourth and final element to an INDEL it is either _4 or _ctgc
             if len(cols)==3:
