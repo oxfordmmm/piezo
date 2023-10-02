@@ -161,20 +161,25 @@ def process_catalogue_GARC1(rules: pandas.DataFrame, drugs: [str], catalogue_gen
 
     return rules, genes, drug_lookup, gene_lookup
 
-def predict_GARC1(catalogue: collections.namedtuple, gene_mutation: str) -> {str: str}:
+def predict_GARC1(catalogue: collections.namedtuple, gene_mutation: str, show_evidence: bool=False) -> {str: (str, str)}:
     '''
     For the GARC1 grammar, predict the effect of the supplied gene_mutation.
 
     Args:
         catalogue (collections.namedtuple): defines the resistance catalogue
         gene_mutation (str): as specified by the GARC1 grammar, e.g. rpoB_S450L, fabG1_c-15t, ahpC_128_indel
+        show_evidence (bool, optional): Flag for whether to return the evidence for this prediction
 
     Returns:
-        {str: str} | str: Either a dictionary mapping drug name -> predictions or "S" if no hits in the catalogue
+        {str: (str, str)} | str: Either a dictionary mapping drug name -> (prediction, evidence) or "S" if no hits in the catalogue
     '''
     if '&' in gene_mutation:
         #Multi-gene so treat differently
-        return predict_multi(catalogue, gene_mutation)
+        result = predict_multi(catalogue, gene_mutation)
+        if show_evidence or result == "S":
+            return result
+        else:
+            return {key: result[key][0] for key in result.keys()}
     components=gene_mutation.split("@")
 
     gene=components[0]
@@ -240,8 +245,10 @@ def predict_GARC1(catalogue: collections.namedtuple, gene_mutation: str) -> {str
 
         final_prediction=predictions[sorted(predictions)[-1]]
         result[compound]=final_prediction
-
-    return(result)
+    if show_evidence:
+        return result
+    else:
+        return {key: result[key][0] for key in result.keys()}
 
 def predict_multi(catalogue: collections.namedtuple, gene_mutation: str) -> {str: str}:
     '''Get the predictions for a given multi-mutation. 
@@ -263,33 +270,33 @@ def predict_multi(catalogue: collections.namedtuple, gene_mutation: str) -> {str
     #Get the multi rules
     multi_rules = catalogue.rules[catalogue.rules['MUTATION_TYPE']=='MULTI']
 
-    drugs = {drug: 'S' for drug in catalogue.drugs}
+    drugs = {drug: ('S', "{}") for drug in catalogue.drugs}
     values = catalogue.values
     for (_, rule) in multi_rules.iterrows():
         if rule['MUTATION'] == sorted_mutation:
             #We have a match! Prioritise predictions based on values
             drug = rule['DRUG']
-            if values.index(rule['PREDICTION']) < values.index(drugs[drug]):
+            if values.index(rule['PREDICTION']) < values.index(drugs[drug][0]):
                 #The prediction is closer to the start of the values list, so should take priority
                 #Check for minor populations first though
                 for (cat, minor) in zip(rule['MINOR'].split(","), minors):
                     if minor is None and cat == '':
                         #Neither are minors so add
-                        drugs[drug] = rule['PREDICTION']
+                        drugs[drug] = (rule['PREDICTION'], rule['EVIDENCE'])
                     elif cat != '' and minor is not None and minor < 1 and float(cat) < 1:
                         #FRS
                         if minor >= float(cat):
                             #Match
-                            drugs[drug] = rule['PREDICTION']
+                            drugs[drug] = (rule['PREDICTION'], rule['EVIDENCE'])
                     elif cat != '' and minor is not None and minor >=1 and float(cat) >= 1:
                         #COV
                         if minor >= float(cat):
                             #Match
-                            drugs[drug] = rule['PREDICTION']
+                            drugs[drug] = (rule['PREDICTION'], rule['EVIDENCE'])
 
     #Check to ensure we have at least 1 prediction
-    if len([key for key in drugs.keys() if drugs[key] != 'S']) > 0:
-        return {drug: drugs[drug] for drug in drugs.keys() if drugs[drug]!='S'}
+    if len([key for key in drugs.keys() if drugs[key][0] != 'S']) > 0:
+        return {drug: drugs[drug] for drug in drugs.keys() if drugs[drug][0]!='S'}
 
     #Nothing predicted, so try each individual mutation
     predictions = {}
@@ -299,7 +306,7 @@ def predict_multi(catalogue: collections.namedtuple, gene_mutation: str) -> {str
             mutation = mutation + ":" + str(minor)
 
         #Get the prediction for the mutation
-        pred = predict_GARC1(catalogue, mutation)
+        pred = predict_GARC1(catalogue, mutation, True)
         if isinstance(pred, str):
             #We have a 'S' prediction so ignore it
             continue
@@ -309,7 +316,7 @@ def predict_multi(catalogue: collections.namedtuple, gene_mutation: str) -> {str
     return merge_predictions(predictions, catalogue)
 
 
-def merge_predictions(predictions: {str: {str: str}}, catalogue: collections.namedtuple) -> {str: str}:
+def merge_predictions(predictions: {str: {str: (str, str)}}, catalogue: collections.namedtuple) -> {str: (str, str)}:
     '''When multi-mutations do not have a hit, they are decomposed and individuals are tried instead
     This merges these predictions based on the prioritisation defined for this catalogue
 
@@ -326,20 +333,20 @@ def merge_predictions(predictions: {str: {str: str}}, catalogue: collections.nam
             drugs.add(drug)
 
     #Default to 'S' for now
-    merged = {drug: 'S' for drug in drugs}
+    merged = {drug: ('S', "{}") for drug in drugs}
 
     #Look for all predictions for each drug, and report the most significant
     for drug in drugs:
         for mutation in predictions.keys():
             #Get the prediction for this drug (if exists)
-            pred = predictions[mutation][drug]
-            if catalogue.values.index(pred) <= catalogue.values.index(merged[drug]):
+            pred, evidence = predictions[mutation][drug]
+            if catalogue.values.index(pred) <= catalogue.values.index(merged[drug][0]):
                 #New highest priority, so set the prediction
-                merged[drug] = pred
+                merged[drug] = (pred, evidence)
     
     #If we have >=1 non-'S' prediction, return the dict
-    if len([key for key in merged.keys() if merged[key] != 'S']) > 0:
-        return {drug: merged[drug] for drug in merged.keys() if merged[drug]!='S'}
+    if len([key for key in merged.keys() if merged[key][0] != 'S']) > 0:
+        return {drug: merged[drug] for drug in merged.keys() if merged[drug][0]!='S'}
 
     #Else give the default 'S'
     return 'S'
@@ -354,6 +361,7 @@ def row_prediction(rows: pandas.DataFrame, predictions: {int: str}, priority: in
         minor (float | None): Reads/FRS supporting this, or None if not a minor population
     '''
     pred = None
+    evidence = dict()
     values = ['R', 'U', 'F', 'S', None]
     for _, row in rows.iterrows():
         if not row.empty:
@@ -363,25 +371,29 @@ def row_prediction(rows: pandas.DataFrame, predictions: {int: str}, priority: in
                 if minor is None and row['MINOR'] == '':
                     #Neither are minor populations so act normally
                     pred = row['PREDICTION']
+                    evidence = row['EVIDENCE']
 
                 elif minor is not None and row['MINOR'] != '' and minor < 1 and float(row['MINOR']) < 1:
                     #We have FRS
                     if minor >= float(row['MINOR']):
                         #Match
                         pred = row['PREDICTION']
+                        evidence = row['EVIDENCE']
 
                 elif minor is not None and row['MINOR'] != '' and minor >= 1 and float(row['MINOR']) >= 1:
                     #We have COV
                     if minor >= float(row['MINOR']):
                         #Match
                         pred = row['PREDICTION']
+                        evidence = row['EVIDENCE']
 
                 else:
                     #Mismatch, so only give a match for defaults
                     if "*" in row['MUTATION']:
                         pred = row['PREDICTION']
+                        evidence = row['EVIDENCE']
     if pred:
-        predictions[int(priority)] = str(pred)
+        predictions[int(priority)] = (str(pred), evidence)
 
 def large_del(predictions: {int: str}, rules: pandas.DataFrame, size: float, minor: float) -> None:
     '''Row prediction, but specifically for large deletions
@@ -404,12 +416,14 @@ def large_del(predictions: {int: str}, rules: pandas.DataFrame, size: float, min
                 if minor is None and rule['MINOR'] == '':
                     #Neither are minor populations so act normally
                     pred = rule['PREDICTION']
+                    evidence = rule['EVIDENCE']
                     current = percentage
                 elif minor is not None and rule['MINOR'] != '' and minor < 1 and float(rule['MINOR']) < 1:
                     #We have FRS
                     if minor >= float(rule['MINOR']):
                         #Match
                         pred = rule['PREDICTION']
+                        evidence = rule['EVIDENCE']
                         current = percentage
 
                 elif minor is not None and rule['MINOR'] != '' and minor >= 1 and float(rule['MINOR']) >= 1:
@@ -417,14 +431,16 @@ def large_del(predictions: {int: str}, rules: pandas.DataFrame, size: float, min
                     if minor >= float(rule['MINOR']):
                         #Match
                         pred = rule['PREDICTION']
+                        evidence = rule['EVIDENCE']
                         current = percentage
                 else:
                     #Mismatch so only match default
                     if rule['MUTATION'] == "del_0.0":
                         pred = rule['PREDICTION']
+                        evidence = rule['EVIDENCE']
                         current = percentage
     if pred:
-        predictions[1] = str(pred)
+        predictions[1] = (str(pred), evidence)
 
 
 def process_snp_variants(mutation_affects: str,
