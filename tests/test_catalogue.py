@@ -126,6 +126,124 @@ def test_catalogue_prediction_snps(test_catalogue):
     with pytest.raises(Exception):
         assert test_catalogue.predict("M2@T-10a")
 
+
+@pytest.mark.parametrize("test_catalogue", [piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"), piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv", prediction_subset_only=True)])
+def test_catalogue_prediction_snps_evidence(test_catalogue):
+
+    # check a row in the catalogue
+    assert test_catalogue.predict("M2@L73P", show_evidence=True) == {
+        'DRUG_A': ('U', {'row': 12}), 
+        'DRUG_B': ('U', {'row': 25})
+    }
+
+    # check a synonymous mutation has no effect
+    assert test_catalogue.predict("M2@L73L", show_evidence=True) == {
+        'DRUG_A': ('S',{'row': 11}), 
+        'DRUG_B': ('S', {'row': 24})
+    }
+
+    # check a het
+    assert test_catalogue.predict("M2@L73Z", show_evidence=True) == {
+        'DRUG_A': ('F', {'row': 1}),
+        'DRUG_B': ('S', {'row': 26})
+    }
+
+    # check a filter fail that will hit the default S rule
+    assert test_catalogue.predict("M2@L73O", show_evidence=True) == {
+        'DRUG_A': ('S',  {'row': 15}),
+        'DRUG_B': ('S', {'row': 27})
+    }
+
+    # check a null that will hit the default S rule
+    assert test_catalogue.predict("M2@L73X", show_evidence=True) == {
+        'DRUG_A': ('S',  {'row': 16}), 
+        'DRUG_B': ('S', {'row': 28})
+    }
+
+    # check a filter fail that hits a specific rule for DRUG_A
+    assert test_catalogue.predict("M2@G74O", show_evidence=True) == {
+        'DRUG_A': ('F', {'row': 5}),
+        'DRUG_B': ('S', {'row': 27})
+    }
+
+    # check a null that hits a specific rule for DRUG_A
+    assert test_catalogue.predict("M2@G74X", show_evidence=True) == {
+        'DRUG_A': ('F', {'row': 4}),
+        'DRUG_B': ('S', {'row': 28})
+    }
+
+    # check hitting a wildtype row
+    assert test_catalogue.predict("M2@G74I", show_evidence=True) == {
+        'DRUG_A': ('U', {'row': 6}),
+        'DRUG_B': ('U', {'row': 25})
+    }
+
+    assert test_catalogue.predict("M2@G74Z", show_evidence=True) == {
+        'DRUG_A': ('R', {'row': 3}),
+        'DRUG_B': ('S', {'row': 26})
+    }
+
+    assert test_catalogue.predict("M2@G74P", show_evidence=True) == {
+        'DRUG_A': ('R', {'row': 2}),
+        'DRUG_B': ('U', {'row': 25})
+    }
+
+    assert test_catalogue.predict("M2@G74!", show_evidence=True) == {
+        'DRUG_A': ('S', {'row': 7}),
+        'DRUG_B': ('U', {'row': 25})
+    }
+
+    assert test_catalogue.predict("M2@t-15c", show_evidence=True) == {
+        'DRUG_A': ('U', {'row': 17}),
+        'DRUG_B': ('U', {'row': 29})
+    }
+
+    assert test_catalogue.predict("M2@t-15z", show_evidence=True) == {
+        'DRUG_A': ('S', {'row': 18}),
+        'DRUG_B': ('S', {'row': 30})
+    }
+
+    assert test_catalogue.predict("M2@t-15o", show_evidence=True) == {
+        'DRUG_A': ('F', {'row': 10}), 
+        'DRUG_B': ('S', {'row': 31})
+    }
+
+    assert test_catalogue.predict("M2@t-15x", show_evidence=True) == {
+        'DRUG_A': ('F', {'row': 9}),
+        'DRUG_B': ('S', {'row': 32})
+    }
+
+    # check that a gene not in the catalogue simply returns an "S"
+    assert test_catalogue.predict("N1@S2T", show_evidence=True) == "S"
+
+    #Checking large deletions
+    assert test_catalogue.predict("M2@del_1.0", show_evidence=True) == {
+        "DRUG_A": ('R', {'row': 42}),
+        "DRUG_B": ('U', {'row': 43})
+    }
+    assert test_catalogue.predict("M2@del_0.9", show_evidence=True) == {
+        "DRUG_A": ('R', {'row': 42}),
+        "DRUG_B": ('U', {'row': 43})
+    }
+    assert test_catalogue.predict("M2@del_0.85", show_evidence=True) == {
+        "DRUG_A": ('R', {'row': 42}),
+        "DRUG_B": ('U', {'row': 43})
+    }
+    assert test_catalogue.predict("M2@del_0.8", show_evidence=True) == {
+        "DRUG_A": ('R', {'row': 42}),
+        "DRUG_B": ('U', {'row': 43})
+    }
+    assert test_catalogue.predict("M2@del_0.7", show_evidence=True) == {
+        "DRUG_A": ('U', {'row': 44}),
+        "DRUG_B": ('U', {'row': 43})
+    }
+    assert test_catalogue.predict("M2@del_0.5", show_evidence=True) == {
+        "DRUG_A": ('U', {'row': 44}),
+        "DRUG_B": ('U', {'row': 43})
+    }
+
+
+
 @pytest.mark.parametrize("test_catalogue", [piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"), piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv", prediction_subset_only=True)])
 def test_catalogue_prediction_indels(test_catalogue):
 
