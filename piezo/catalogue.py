@@ -40,19 +40,20 @@ class ResistanceCatalogue:
         '''
         self.catalogue = load_catalogue(catalogue_file, prediction_subset_only)
 
-    def predict(self, mutation: str, verbose: bool=False) -> {str: str}:
+    def predict(self, mutation: str, verbose: bool=False, show_evidence=False) -> {str: str}:
         '''Make a prediction of a mutation's effects based on the catalogue
 
         Args:
             mutation (str): Mutation in GARC
             verbose (bool, optional): Whether to be verbose. Defaults to False. DEPRECIATED
+            show_evidence (bool, optional): If True predictions are returned as (<prediction>, <evidence>)
 
         Returns:
             {str: str}: Dictionary mapping drug name -> prediction, or "S" if no matches
         '''
         if verbose:
             warnings.warn("`verbose` kwarg is depreciated and will be removed in future.", UserWarning)
-        return predict(self.catalogue, mutation=mutation, verbose=verbose)
+        return predict(self.catalogue, mutation=mutation, verbose=verbose, show_evidence=show_evidence)
 
 def parse_json(data: str) -> dict:
     '''Load the data within a json string to Python dict
@@ -136,7 +137,7 @@ def load_catalogue(catalogue_file: str, prediction_subset_only: bool) -> collect
                            number_rows,
                            rules)
 
-def predict(catalogue: collections.namedtuple, mutation: str, verbose: bool=False) -> {str: str}:
+def predict(catalogue: collections.namedtuple, mutation: str, verbose: bool=False, show_evidence: bool=False) -> {str: (str, str)}:
     '''
     Predict the effect of the given mutation on one or more antimicrobials.
 
@@ -144,6 +145,7 @@ def predict(catalogue: collections.namedtuple, mutation: str, verbose: bool=Fals
         catalogue (collections.namedtuple): The catalogue
         mutation (str): a genetic variant in the form GENE_MUTATION e.g. for a SNP katG_S315T, INDEL katG_315_indel.
         verbose (bool): if True, then a description of the rules that apply to the supplied mutation and their priority is written to STDOUT (default=False). DEPRECIATED
+        show_evidence (bool, optional): If True, predictions are returned as a tuple of (<prediciton>, <evidence>). Default=False
 
     Returns:
         result (dict): the drugs affected by the mutation are the keys, and the predicted phenotypes are the values. e.g. {'LEV':'R', 'MXF':'R'}
@@ -158,4 +160,4 @@ def predict(catalogue: collections.namedtuple, mutation: str, verbose: bool=Fals
     if verbose:
         warnings.warn("`verbose` kwarg is depreciated and will be removed in future.", UserWarning)
     
-    return predict_GARC1(catalogue, mutation)
+    return predict_GARC1(catalogue, mutation, show_evidence=show_evidence)
