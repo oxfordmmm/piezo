@@ -5,97 +5,119 @@ import piezo
 
 
 @pytest.mark.parametrize(
-                        "test_catalogue,genes,gene_lookup", 
-                        [
-                            (
-                                piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"), 
-                                ['M2', 'N', 'MULTI'],
-                                {'M2':['DRUG_A','DRUG_B'], 'MULTI': ['DRUG_A', 'DRUG_B'], 'N': ['DRUG_A']}
-                            ), 
-                            (
-                                piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv", prediction_subset_only=True), 
-                                ['M2', 'MULTI'],
-                                {'M2':['DRUG_A','DRUG_B'], 'MULTI': ['DRUG_A', 'DRUG_B']}
-                            )
-                        ]
-                        )
+    "test_catalogue,genes,gene_lookup",
+    [
+        (
+            piezo.ResistanceCatalogue(
+                "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"
+            ),
+            ["M2", "N", "MULTI"],
+            {
+                "M2": ["DRUG_A", "DRUG_B"],
+                "MULTI": ["DRUG_A", "DRUG_B"],
+                "N": ["DRUG_A"],
+            },
+        ),
+        (
+            piezo.ResistanceCatalogue(
+                "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv",
+                prediction_subset_only=True,
+            ),
+            ["M2", "MULTI"],
+            {"M2": ["DRUG_A", "DRUG_B"], "MULTI": ["DRUG_A", "DRUG_B"]},
+        ),
+    ],
+)
 def test_catalogue__init__(test_catalogue, genes, gene_lookup):
+    assert test_catalogue.catalogue.genbank_reference == "NC_004148.2"
 
-    assert test_catalogue.catalogue.genbank_reference=="NC_004148.2"
+    assert test_catalogue.catalogue.name == "TEST"
 
-    assert test_catalogue.catalogue.name=="TEST"
+    assert test_catalogue.catalogue.version == "v1.0"
 
-    assert test_catalogue.catalogue.version=="v1.0"
+    assert test_catalogue.catalogue.values == ["R", "F", "U", "S"]
 
-    assert test_catalogue.catalogue.values==["R","F","U","S"]
-
-    assert test_catalogue.catalogue.grammar=="GARC1"
+    assert test_catalogue.catalogue.grammar == "GARC1"
 
     assert test_catalogue.catalogue.number_rows == 45
 
-    assert test_catalogue.catalogue.drugs==['DRUG_A','DRUG_B']
+    assert test_catalogue.catalogue.drugs == ["DRUG_A", "DRUG_B"]
 
-    #Ordering of lists is annoying here, so sort both
+    # Ordering of lists is annoying here, so sort both
     genes = sorted(genes)
     assert sorted(test_catalogue.catalogue.genes) == genes
 
     assert test_catalogue.catalogue.gene_lookup == gene_lookup
 
-    #Convert the gene_lookup to drug_lookup
+    # Convert the gene_lookup to drug_lookup
     lookup = defaultdict(list)
     for gene in gene_lookup.keys():
         for drug in gene_lookup[gene]:
             lookup[drug].append(gene)
     lookup = {drug: sorted(lookup[drug]) for drug in lookup.keys()}
 
-    actual_lookup = {drug: sorted(test_catalogue.catalogue.drug_lookup[drug]) for drug in test_catalogue.catalogue.drug_lookup.keys()}
+    actual_lookup = {
+        drug: sorted(test_catalogue.catalogue.drug_lookup[drug])
+        for drug in test_catalogue.catalogue.drug_lookup.keys()
+    }
     assert actual_lookup == lookup
 
-@pytest.mark.parametrize("test_catalogue", [piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"), piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv", prediction_subset_only=True)])
-def test_catalogue_prediction_snps(test_catalogue):
 
+@pytest.mark.parametrize(
+    "test_catalogue",
+    [
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"
+        ),
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv",
+            prediction_subset_only=True,
+        ),
+    ],
+)
+def test_catalogue_prediction_snps(test_catalogue):
     # check a row in the catalogue
-    assert test_catalogue.predict("M2@L73P")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test_catalogue.predict("M2@L73P") == {"DRUG_A": "U", "DRUG_B": "U"}
 
     # check a synonymous mutation has no effect
-    assert test_catalogue.predict("M2@L73L")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
+    assert test_catalogue.predict("M2@L73L") == {"DRUG_A": "S", "DRUG_B": "S"}
 
     # check a het
-    assert test_catalogue.predict("M2@L73Z")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
+    assert test_catalogue.predict("M2@L73Z") == {"DRUG_A": "F", "DRUG_B": "S"}
 
     # check a filter fail that will hit the default S rule
-    assert test_catalogue.predict("M2@L73O")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
+    assert test_catalogue.predict("M2@L73O") == {"DRUG_A": "S", "DRUG_B": "S"}
 
     # check a null that will hit the default S rule
-    assert test_catalogue.predict("M2@L73X")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
+    assert test_catalogue.predict("M2@L73X") == {"DRUG_A": "S", "DRUG_B": "S"}
 
     # check a filter fail that hits a specific rule for DRUG_A
-    assert test_catalogue.predict("M2@G74O")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
+    assert test_catalogue.predict("M2@G74O") == {"DRUG_A": "F", "DRUG_B": "S"}
 
     # check a null that hits a specific rule for DRUG_A
-    assert test_catalogue.predict("M2@G74X")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
+    assert test_catalogue.predict("M2@G74X") == {"DRUG_A": "F", "DRUG_B": "S"}
 
     # check hitting a wildtype row
-    assert test_catalogue.predict("M2@G74I")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test_catalogue.predict("M2@G74I") == {"DRUG_A": "U", "DRUG_B": "U"}
 
-    assert test_catalogue.predict("M2@G74Z")=={'DRUG_A': 'R', 'DRUG_B': 'S'}
+    assert test_catalogue.predict("M2@G74Z") == {"DRUG_A": "R", "DRUG_B": "S"}
 
-    assert test_catalogue.predict("M2@G74P")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
+    assert test_catalogue.predict("M2@G74P") == {"DRUG_A": "R", "DRUG_B": "U"}
 
-    assert test_catalogue.predict("M2@G74!")=={'DRUG_A': 'S', 'DRUG_B': 'U'}
+    assert test_catalogue.predict("M2@G74!") == {"DRUG_A": "S", "DRUG_B": "U"}
 
-    assert test_catalogue.predict("M2@t-15c")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test_catalogue.predict("M2@t-15c") == {"DRUG_A": "U", "DRUG_B": "U"}
 
-    assert test_catalogue.predict("M2@t-15z")=={'DRUG_A': 'S', 'DRUG_B': 'S'}
+    assert test_catalogue.predict("M2@t-15z") == {"DRUG_A": "S", "DRUG_B": "S"}
 
-    assert test_catalogue.predict("M2@t-15o")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
+    assert test_catalogue.predict("M2@t-15o") == {"DRUG_A": "F", "DRUG_B": "S"}
 
-    assert test_catalogue.predict("M2@t-15x")=={'DRUG_A': 'F', 'DRUG_B': 'S'}
+    assert test_catalogue.predict("M2@t-15x") == {"DRUG_A": "F", "DRUG_B": "S"}
 
     # check that a gene not in the catalogue simply returns an "S"
-    assert test_catalogue.predict("N1@S2T")=="S"
+    assert test_catalogue.predict("N1@S2T") == "S"
 
-    #Checking large deletions
+    # Checking large deletions
     assert test_catalogue.predict("M2@del_1.0") == {"DRUG_A": "R", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.9") == {"DRUG_A": "R", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.85") == {"DRUG_A": "R", "DRUG_B": "U"}
@@ -108,7 +130,7 @@ def test_catalogue_prediction_snps(test_catalogue):
 
     # bad prediction
     with pytest.raises(Exception):
-        assert test_catalogue.predict("M2@L73P")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
+        assert test_catalogue.predict("M2@L73P") == {"DRUG_A": "R", "DRUG_B": "R"}
 
     # incorrect amino acid in the alt position
     with pytest.raises(Exception):
@@ -127,255 +149,331 @@ def test_catalogue_prediction_snps(test_catalogue):
         assert test_catalogue.predict("M2@T-10a")
 
 
-@pytest.mark.parametrize("test_catalogue", [piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"), piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv", prediction_subset_only=True)])
+@pytest.mark.parametrize(
+    "test_catalogue",
+    [
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"
+        ),
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv",
+            prediction_subset_only=True,
+        ),
+    ],
+)
 def test_catalogue_prediction_snps_evidence(test_catalogue):
-
     # check a row in the catalogue
     assert test_catalogue.predict("M2@L73P", show_evidence=True) == {
-        'DRUG_A': ('U', {'row': 12}), 
-        'DRUG_B': ('U', {'row': 25})
+        "DRUG_A": ("U", {"row": 12}),
+        "DRUG_B": ("U", {"row": 25}),
     }
 
     # check a synonymous mutation has no effect
     assert test_catalogue.predict("M2@L73L", show_evidence=True) == {
-        'DRUG_A': ('S',{'row': 11}), 
-        'DRUG_B': ('S', {'row': 24})
+        "DRUG_A": ("S", {"row": 11}),
+        "DRUG_B": ("S", {"row": 24}),
     }
 
     # check a het
     assert test_catalogue.predict("M2@L73Z", show_evidence=True) == {
-        'DRUG_A': ('F', {'row': 1}),
-        'DRUG_B': ('S', {'row': 26})
+        "DRUG_A": ("F", {"row": 1}),
+        "DRUG_B": ("S", {"row": 26}),
     }
 
     # check a filter fail that will hit the default S rule
     assert test_catalogue.predict("M2@L73O", show_evidence=True) == {
-        'DRUG_A': ('S',  {'row': 15}),
-        'DRUG_B': ('S', {'row': 27})
+        "DRUG_A": ("S", {"row": 15}),
+        "DRUG_B": ("S", {"row": 27}),
     }
 
     # check a null that will hit the default S rule
     assert test_catalogue.predict("M2@L73X", show_evidence=True) == {
-        'DRUG_A': ('S',  {'row': 16}), 
-        'DRUG_B': ('S', {'row': 28})
+        "DRUG_A": ("S", {"row": 16}),
+        "DRUG_B": ("S", {"row": 28}),
     }
 
     # check a filter fail that hits a specific rule for DRUG_A
     assert test_catalogue.predict("M2@G74O", show_evidence=True) == {
-        'DRUG_A': ('F', {'row': 5}),
-        'DRUG_B': ('S', {'row': 27})
+        "DRUG_A": ("F", {"row": 5}),
+        "DRUG_B": ("S", {"row": 27}),
     }
 
     # check a null that hits a specific rule for DRUG_A
     assert test_catalogue.predict("M2@G74X", show_evidence=True) == {
-        'DRUG_A': ('F', {'row': 4}),
-        'DRUG_B': ('S', {'row': 28})
+        "DRUG_A": ("F", {"row": 4}),
+        "DRUG_B": ("S", {"row": 28}),
     }
 
     # check hitting a wildtype row
     assert test_catalogue.predict("M2@G74I", show_evidence=True) == {
-        'DRUG_A': ('U', {'row': 6}),
-        'DRUG_B': ('U', {'row': 25})
+        "DRUG_A": ("U", {"row": 6}),
+        "DRUG_B": ("U", {"row": 25}),
     }
 
     assert test_catalogue.predict("M2@G74Z", show_evidence=True) == {
-        'DRUG_A': ('R', {'row': 3}),
-        'DRUG_B': ('S', {'row': 26})
+        "DRUG_A": ("R", {"row": 3}),
+        "DRUG_B": ("S", {"row": 26}),
     }
 
     assert test_catalogue.predict("M2@G74P", show_evidence=True) == {
-        'DRUG_A': ('R', {'row': 2}),
-        'DRUG_B': ('U', {'row': 25})
+        "DRUG_A": ("R", {"row": 2}),
+        "DRUG_B": ("U", {"row": 25}),
     }
 
     assert test_catalogue.predict("M2@G74!", show_evidence=True) == {
-        'DRUG_A': ('S', {'row': 7}),
-        'DRUG_B': ('U', {'row': 25})
+        "DRUG_A": ("S", {"row": 7}),
+        "DRUG_B": ("U", {"row": 25}),
     }
 
     assert test_catalogue.predict("M2@t-15c", show_evidence=True) == {
-        'DRUG_A': ('U', {'row': 17}),
-        'DRUG_B': ('U', {'row': 29})
+        "DRUG_A": ("U", {"row": 17}),
+        "DRUG_B": ("U", {"row": 29}),
     }
 
     assert test_catalogue.predict("M2@t-15z", show_evidence=True) == {
-        'DRUG_A': ('S', {'row': 18}),
-        'DRUG_B': ('S', {'row': 30})
+        "DRUG_A": ("S", {"row": 18}),
+        "DRUG_B": ("S", {"row": 30}),
     }
 
     assert test_catalogue.predict("M2@t-15o", show_evidence=True) == {
-        'DRUG_A': ('F', {'row': 10}), 
-        'DRUG_B': ('S', {'row': 31})
+        "DRUG_A": ("F", {"row": 10}),
+        "DRUG_B": ("S", {"row": 31}),
     }
 
     assert test_catalogue.predict("M2@t-15x", show_evidence=True) == {
-        'DRUG_A': ('F', {'row': 9}),
-        'DRUG_B': ('S', {'row': 32})
+        "DRUG_A": ("F", {"row": 9}),
+        "DRUG_B": ("S", {"row": 32}),
     }
 
     # check that a gene not in the catalogue simply returns an "S"
     assert test_catalogue.predict("N1@S2T", show_evidence=True) == "S"
 
-    #Checking large deletions
+    # Checking large deletions
     assert test_catalogue.predict("M2@del_1.0", show_evidence=True) == {
-        "DRUG_A": ('R', {'row': 42}),
-        "DRUG_B": ('U', {'row': 43})
+        "DRUG_A": ("R", {"row": 42}),
+        "DRUG_B": ("U", {"row": 43}),
     }
     assert test_catalogue.predict("M2@del_0.9", show_evidence=True) == {
-        "DRUG_A": ('R', {'row': 42}),
-        "DRUG_B": ('U', {'row': 43})
+        "DRUG_A": ("R", {"row": 42}),
+        "DRUG_B": ("U", {"row": 43}),
     }
     assert test_catalogue.predict("M2@del_0.85", show_evidence=True) == {
-        "DRUG_A": ('R', {'row': 42}),
-        "DRUG_B": ('U', {'row': 43})
+        "DRUG_A": ("R", {"row": 42}),
+        "DRUG_B": ("U", {"row": 43}),
     }
     assert test_catalogue.predict("M2@del_0.8", show_evidence=True) == {
-        "DRUG_A": ('R', {'row': 42}),
-        "DRUG_B": ('U', {'row': 43})
+        "DRUG_A": ("R", {"row": 42}),
+        "DRUG_B": ("U", {"row": 43}),
     }
     assert test_catalogue.predict("M2@del_0.7", show_evidence=True) == {
-        "DRUG_A": ('U', {'row': 44}),
-        "DRUG_B": ('U', {'row': 43})
+        "DRUG_A": ("U", {"row": 44}),
+        "DRUG_B": ("U", {"row": 43}),
     }
     assert test_catalogue.predict("M2@del_0.5", show_evidence=True) == {
-        "DRUG_A": ('U', {'row': 44}),
-        "DRUG_B": ('U', {'row': 43})
+        "DRUG_A": ("U", {"row": 44}),
+        "DRUG_B": ("U", {"row": 43}),
     }
 
 
-
-@pytest.mark.parametrize("test_catalogue", [piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"), piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv", prediction_subset_only=True)])
+@pytest.mark.parametrize(
+    "test_catalogue",
+    [
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"
+        ),
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv",
+            prediction_subset_only=True,
+        ),
+    ],
+)
 def test_catalogue_prediction_indels(test_catalogue):
-
     # check a general indel
-    assert test_catalogue.predict("M2@300_indel")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test_catalogue.predict("M2@300_indel") == {"DRUG_A": "U", "DRUG_B": "U"}
 
     # check an insertion
-    assert test_catalogue.predict("M2@300_ins")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
-    assert test_catalogue.predict("M2@-10_ins")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
-    assert test_catalogue.predict("M2@-10_ins_2")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test_catalogue.predict("M2@300_ins") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@-10_ins") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@-10_ins_2") == {"DRUG_A": "U", "DRUG_B": "U"}
 
     # check a deletion
-    assert test_catalogue.predict("M2@300_del")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test_catalogue.predict("M2@300_del") == {"DRUG_A": "U", "DRUG_B": "U"}
 
     # check numbered insertions and deletions
-    assert test_catalogue.predict("M2@300_ins_6")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
-    assert test_catalogue.predict("M2@300_del_6")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test_catalogue.predict("M2@300_ins_6") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@300_del_6") == {"DRUG_A": "U", "DRUG_B": "U"}
 
     # check a specific insertion
-    assert test_catalogue.predict("M2@300_ins_acc")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+    assert test_catalogue.predict("M2@300_ins_acc") == {"DRUG_A": "U", "DRUG_B": "U"}
 
-    assert test_catalogue.predict("M2@100_indel")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
-    assert test_catalogue.predict("M2@100_ins")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
-    assert test_catalogue.predict("M2@100_ins_3")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
-    assert test_catalogue.predict("M2@100_ins_act")=={'DRUG_A': 'R', 'DRUG_B': 'U'}
-
+    assert test_catalogue.predict("M2@100_indel") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@100_ins") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@100_ins_3") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@100_ins_act") == {"DRUG_A": "R", "DRUG_B": "U"}
 
     # check these hit the frameshift rule
-    assert test_catalogue.predict("M2@100_ins_1")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
-    assert test_catalogue.predict("M2@100_ins_acta")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
-    assert test_catalogue.predict("M2@100_ins_400")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
-    assert test_catalogue.predict("M2@100_ins_actgactg")=={'DRUG_A': 'R', 'DRUG_B': 'R'}
-    assert test_catalogue.predict("M2@300_ins_61")=={'DRUG_A': 'U', 'DRUG_B': 'R'}
-    assert test_catalogue.predict("M2@300_del_65")=={'DRUG_A': 'U', 'DRUG_B': 'R'}
-    assert test_catalogue.predict("M2@300_ins_acctt")=={'DRUG_A': 'U', 'DRUG_B': 'R'}
+    assert test_catalogue.predict("M2@100_ins_1") == {"DRUG_A": "R", "DRUG_B": "R"}
+    assert test_catalogue.predict("M2@100_ins_acta") == {"DRUG_A": "R", "DRUG_B": "R"}
+    assert test_catalogue.predict("M2@100_ins_400") == {"DRUG_A": "R", "DRUG_B": "R"}
+    assert test_catalogue.predict("M2@100_ins_actgactg") == {
+        "DRUG_A": "R",
+        "DRUG_B": "R",
+    }
+    assert test_catalogue.predict("M2@300_ins_61") == {"DRUG_A": "U", "DRUG_B": "R"}
+    assert test_catalogue.predict("M2@300_del_65") == {"DRUG_A": "U", "DRUG_B": "R"}
+    assert test_catalogue.predict("M2@300_ins_acctt") == {"DRUG_A": "U", "DRUG_B": "R"}
 
     # badly formed INDELs
     with pytest.raises(Exception):
-        assert test_catalogue.predict("M2@300_indel_5")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+        assert test_catalogue.predict("M2@300_indel_5") == {
+            "DRUG_A": "U",
+            "DRUG_B": "U",
+        }
     with pytest.raises(Exception):
-        assert test_catalogue.predict("M2@300_indel_-5")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+        assert test_catalogue.predict("M2@300_indel_-5") == {
+            "DRUG_A": "U",
+            "DRUG_B": "U",
+        }
     with pytest.raises(Exception):
-        assert test_catalogue.predict("M2@300_insdel")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+        assert test_catalogue.predict("M2@300_insdel") == {"DRUG_A": "U", "DRUG_B": "U"}
     with pytest.raises(Exception):
-        assert test_catalogue.predict("M2@300_del_ACT")=={'DRUG_A': 'U', 'DRUG_B': 'U'}
+        assert test_catalogue.predict("M2@300_del_ACT") == {
+            "DRUG_A": "U",
+            "DRUG_B": "U",
+        }
 
-@pytest.mark.parametrize("test_catalogue", [piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"), piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv", prediction_subset_only=True)])
+
+@pytest.mark.parametrize(
+    "test_catalogue",
+    [
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"
+        ),
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv",
+            prediction_subset_only=True,
+        ),
+    ],
+)
 def test_multi(test_catalogue):
-    #Exact match with 2 lines of the catalogue
+    # Exact match with 2 lines of the catalogue
     assert test_catalogue.predict("M2@G74!&M2@G74X") == {"DRUG_A": "U", "DRUG_B": "R"}
 
-    #Should hit an 'S' (and 'U' default) and an 'R'
-    assert test_catalogue.predict("M2@F75T&M2@G74P") == {"DRUG_A": 'R', "DRUG_B": 'U'}
+    # Should hit an 'S' (and 'U' default) and an 'R'
+    assert test_catalogue.predict("M2@F75T&M2@G74P") == {"DRUG_A": "R", "DRUG_B": "U"}
 
-    #Should hit an 'F' and an 'R' (and 'U' default)
-    assert test_catalogue.predict("M2@L73Z&M2@G74P") == {"DRUG_A": 'R', 'DRUG_B': 'U'}
+    # Should hit an 'F' and an 'R' (and 'U' default)
+    assert test_catalogue.predict("M2@L73Z&M2@G74P") == {"DRUG_A": "R", "DRUG_B": "U"}
 
-    #Shouldn't hit anything other than 'S'
-    assert test_catalogue.predict("M2@A5A&M2@K6K") == 'S'
+    # Shouldn't hit anything other than 'S'
+    assert test_catalogue.predict("M2@A5A&M2@K6K") == "S"
 
-@pytest.mark.parametrize("test_catalogue", [piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"), piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv", prediction_subset_only=True)])
+
+@pytest.mark.parametrize(
+    "test_catalogue",
+    [
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"
+        ),
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv",
+            prediction_subset_only=True,
+        ),
+    ],
+)
 def test_minor_population(test_catalogue):
-    #COV
-    #Exact match
+    # COV
+    # Exact match
     assert test_catalogue.predict("M2@F75V:2") == {"DRUG_A": "R", "DRUG_B": "U"}
 
-    #Greater than
+    # Greater than
     assert test_catalogue.predict("M2@F75V:3") == {"DRUG_A": "R", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@F75V:4") == {"DRUG_A": "R", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@F75V:350") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue.predict("M2@F75V:123456789123456789") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@F75V:123456789123456789") == {
+        "DRUG_A": "R",
+        "DRUG_B": "U",
+    }
 
-    #Less than (so should just hit a default for now)
+    # Less than (so should just hit a default for now)
     assert test_catalogue.predict("M2@F75V:1") == {"DRUG_A": "U", "DRUG_B": "U"}
 
-    #Should fail
+    # Should fail
     with pytest.raises(Exception):
         test_catalogue.predict("M2@F75V:0")
     with pytest.raises(Exception):
         test_catalogue.predict("M2@F75V:-1")
 
-    #Multi
-    assert test_catalogue.predict("M2@45_del_aaa:6&M2@F75V:5") == {"DRUG_A": 'R', 'DRUG_B': 'U'}
-    assert test_catalogue.predict("M2@45_del_a:2&M2@F75V:3") == {"DRUG_A": 'R', 'DRUG_B': 'R'}
+    # Multi
+    assert test_catalogue.predict("M2@45_del_aaa:6&M2@F75V:5") == {
+        "DRUG_A": "R",
+        "DRUG_B": "U",
+    }
+    assert test_catalogue.predict("M2@45_del_a:2&M2@F75V:3") == {
+        "DRUG_A": "R",
+        "DRUG_B": "R",
+    }
 
-    #FRS
-    test_catalogue2 = piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-FRS.csv")
+    # FRS
+    test_catalogue2 = piezo.ResistanceCatalogue(
+        "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-FRS.csv"
+    )
 
-    #Exact match
+    # Exact match
     assert test_catalogue2.predict("M2@F75V:0.03") == {"DRUG_A": "R", "DRUG_B": "U"}
 
-    #Greater than
+    # Greater than
     assert test_catalogue2.predict("M2@F75V:0.04") == {"DRUG_A": "R", "DRUG_B": "U"}
     assert test_catalogue2.predict("M2@F75V:0.05") == {"DRUG_A": "R", "DRUG_B": "U"}
     assert test_catalogue2.predict("M2@F75V:0.9") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue2.predict("M2@F75V:0.123456789123456789") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue2.predict("M2@F75V:0.123456789123456789") == {
+        "DRUG_A": "R",
+        "DRUG_B": "U",
+    }
 
-    #Less than (so should just hit a default for now)
+    # Less than (so should just hit a default for now)
     assert test_catalogue2.predict("M2@F75V:0.01") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue2.predict("M2@F75V:0.02") == {"DRUG_A": "U", "DRUG_B": "U"}
 
-    #Should fail
+    # Should fail
     with pytest.raises(Exception):
         test_catalogue2.predict("M2@F75V:0.0")
     with pytest.raises(Exception):
         test_catalogue2.predict("M2@F75V:-0.1")
-    
-    assert test_catalogue2.predict("M2@45_del_aaa:0.01&M2@F75V:0.5") == {"DRUG_A": 'R', 'DRUG_B': 'U'}
-    assert test_catalogue2.predict("M2@45_del_a:0.12&M2@F75V:0.03") == {"DRUG_A": 'R', 'DRUG_B': 'R'}
+
+    assert test_catalogue2.predict("M2@45_del_aaa:0.01&M2@F75V:0.5") == {
+        "DRUG_A": "R",
+        "DRUG_B": "U",
+    }
+    assert test_catalogue2.predict("M2@45_del_a:0.12&M2@F75V:0.03") == {
+        "DRUG_A": "R",
+        "DRUG_B": "R",
+    }
 
     assert test_catalogue.predict("M2@G74!:4&M2@G74X:2") == {"DRUG_B": "U"}
     assert test_catalogue2.predict("M2@G74!:0.04&M2@G74X:0.02") == {"DRUG_B": "U"}
 
+
 def test_misc():
-    '''Testing various edge cases
-    '''
-    test_catalogue = piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv")
+    """Testing various edge cases"""
+    test_catalogue = piezo.ResistanceCatalogue(
+        "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"
+    )
 
-    #Genes not in the catalogue should default to 'S'
-    assert test_catalogue.predict("K@g-7a") == 'S'
-    assert test_catalogue.predict("K@g-7a&K@S6L") == 'S'
+    # Genes not in the catalogue should default to 'S'
+    assert test_catalogue.predict("K@g-7a") == "S"
+    assert test_catalogue.predict("K@g-7a&K@S6L") == "S"
 
-    #Our catalogue doesn't have default rules for 'N'
-    #So should cause errors
+    # Our catalogue doesn't have default rules for 'N'
+    # So should cause errors
     with pytest.raises(ValueError):
         test_catalogue.predict("N@K45L")
-    
-    #Malformed minor mutation should cause issues
+
+    # Malformed minor mutation should cause issues
     with pytest.raises(AssertionError):
         test_catalogue.predict("M2@F75V:nope")
 
-    #Trying with catalogues with issues, each hitting a different ValueError
+    # Trying with catalogues with issues, each hitting a different ValueError
     with pytest.raises(ValueError):
         piezo.ResistanceCatalogue("tests/test-catalogue/broken-catalogue.csv")
 
@@ -387,19 +485,21 @@ def test_misc():
 
     with pytest.raises(ValueError):
         piezo.ResistanceCatalogue("tests/test-catalogue/broken-catalogue4.csv")
-    
+
     with pytest.raises(ValueError):
         piezo.ResistanceCatalogue("tests/test-catalogue/broken-catalogue5.csv")
 
     with pytest.raises(ValueError):
         piezo.ResistanceCatalogue("tests/test-catalogue/broken-catalogue6.csv")
-    
-    #Checking for deprication warnings
+
+    # Checking for deprication warnings
     with pytest.warns(UserWarning):
         test_catalogue.predict("M2@L73P", verbose=True)
-    
-    #Minor edge cases of large dels
-    test_catalogue = piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-minor-COV.csv")
+
+    # Minor edge cases of large dels
+    test_catalogue = piezo.ResistanceCatalogue(
+        "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-minor-COV.csv"
+    )
     assert test_catalogue.predict("M2@del_1.0") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.9:3") == {"DRUG_A": "R", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.85:10") == {"DRUG_A": "R", "DRUG_B": "U"}
@@ -407,12 +507,12 @@ def test_misc():
     assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.5") == {"DRUG_A": "U", "DRUG_B": "U"}
 
-    test_catalogue = piezo.ResistanceCatalogue("tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-minor-FRS.csv")
+    test_catalogue = piezo.ResistanceCatalogue(
+        "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-minor-FRS.csv"
+    )
     assert test_catalogue.predict("M2@del_1.0") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.9:0.3") == {"DRUG_A": "R", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.85:0.99") == {"DRUG_A": "R", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.8:0.01") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.5:0.03") == {"DRUG_A": "U", "DRUG_B": "U"}
-
-
