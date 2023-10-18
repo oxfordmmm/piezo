@@ -233,7 +233,7 @@ def predict_GARC1(
         if show_evidence or isinstance(result_multi, str):
             return result_multi
         else:
-            return {key: result[key][0] for key in result_multi.keys()}
+            return {key: result_multi[key][0] for key in result_multi.keys()}
 
     components = gene_mutation.split("@")
 
