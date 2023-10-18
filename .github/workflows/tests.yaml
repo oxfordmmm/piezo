@@ -29,8 +29,8 @@ jobs:
     - name: Run format checks
       run: | 
         black --check .
-        ruff check gumpy
-        mypy gumpy
+        ruff check piezo
+        mypy piezo
         
     - name: Test with pytest
       run: |
