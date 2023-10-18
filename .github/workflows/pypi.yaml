@@ -24,7 +24,7 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip
         pip3 install .
-        pip3 install black ruff mypy pandas-stubs
+        pip3 install black ruff mypy pandas-stubs types-ujson
     
     - name: Run format checks
       run: | 
