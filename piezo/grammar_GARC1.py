@@ -8,6 +8,7 @@ import pandas
 
 from typing import Tuple, Dict, NamedTuple, List
 
+
 # define the named tuple that will specify a resistance catalogue
 class Catalogue(NamedTuple):
     genbank_reference: str
@@ -21,6 +22,7 @@ class Catalogue(NamedTuple):
     gene_lookup: Dict[str, List[str]]
     number_rows: int
     rules: pandas.DataFrame
+
 
 def split_mutation(row: pandas.Series) -> pandas.Series:
     """Take a row of the catalogue and get info about the mutation from it.
@@ -132,8 +134,8 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
 
 
 def process_catalogue_GARC1(
-    rules: pandas.DataFrame, drugs: [str], catalogue_genes_only: bool
-) -> (pandas.DataFrame, [str], Dict[str, List[str]], Dict[str, List[str]]):
+    rules: pandas.DataFrame, drugs: List[str], catalogue_genes_only: bool
+) -> Tuple[pandas.DataFrame, List[str], Dict[str, List[str]], Dict[str, List[str]]]:
     """
     For the GARC1 grammar, add some additional columns to the rules dataframe that
         can be inferred from the mutation.
@@ -203,7 +205,7 @@ def process_catalogue_GARC1(
 
 def predict_GARC1(
     catalogue: Catalogue, gene_mutation: str, show_evidence: bool = False
-) -> Dict[str, Tuple | str] | str:
+) -> Dict[str, Tuple] | Dict[str, str] | str:
     """
     For the GARC1 grammar, predict the effect of the supplied gene_mutation.
 
@@ -219,13 +221,20 @@ def predict_GARC1(
             (prediction, evidence) if show_evidence is True or "S" if no hits
             in the catalogue
     """
+
+    # create the result dictionary e.g. {"RIF":'R', "RFB":'R'}
+    # most of the time the predictions will be identical, but this allows them to
+    #   diverge in future
+    result: Dict[str, Tuple] = {}
+
     if "&" in gene_mutation:
         # Multi-gene so treat differently
-        result = predict_multi(catalogue, gene_mutation)
-        if show_evidence or result == "S":
-            return result
+        result_multi: Dict[str, Tuple] | str = predict_multi(catalogue, gene_mutation)
+        if show_evidence or isinstance(result_multi, str):
+            return result_multi
         else:
-            return {key: result[key][0] for key in result.keys()}
+            return {key: result[key][0] for key in result_multi.keys()}
+
     components = gene_mutation.split("@")
 
     gene = components[0]
@@ -261,11 +270,6 @@ def predict_GARC1(
     # find out the drugs to which changes in this gene can confer resistance
     drugs = catalogue.gene_lookup[gene]
 
-    # create the result dictionary e.g. {"RIF":'R', "RFB":'R'}
-    # most of the time the predictions will be identical, but this allows them to
-    #   diverge in future
-    result: Dict[str, Tuple | str] = {}
-
     # create the vectors of Booleans that will apply
     position_vector = catalogue.rules.POSITION.isin(
         [position, str(position), "*", "-*"]
@@ -284,7 +288,7 @@ def predict_GARC1(
 
         # prepare a dictionary to store hits with the priority as the key:
         #   e.g. {10:'R',5:'U'}
-        predictions = {}
+        predictions: Dict[int, Tuple[str, Dict]] = {}
 
         if not subset_rules.empty:
             subset_position_vector = subset_rules.POSITION == str(position)
@@ -323,9 +327,9 @@ def predict_GARC1(
                 "No entry found in the catalogue for " + gene_mutation + " " + compound
             )
 
-        final_prediction = predictions[sorted(predictions)[-1]]
+        final_prediction: Tuple = predictions[sorted(predictions)[-1]]
         result[compound] = final_prediction
-    
+
     if show_evidence or isinstance(result, str):
         return result
     else:
@@ -414,7 +418,7 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
 
 
 def merge_predictions(
-    predictions: Dict[str, Dict[str, Tuple | str]], catalogue: Catalogue
+    predictions: Dict[str, Dict[str, Tuple] | Dict[str, str]], catalogue: Catalogue
 ) -> Dict[str, Tuple] | str:
     """When multi-mutations do not have a hit, they are decomposed and individuals are
         tried instead
@@ -465,7 +469,7 @@ def row_prediction(
     rows: pandas.DataFrame,
     predictions: Dict[int, Tuple[str, Dict]],
     priority: int,
-    minor: float,
+    minor: float | None,
 ) -> None:
     """Get the predictions from the catalogue for the applicable rows
 
@@ -530,7 +534,7 @@ def large_del(
     predictions: Dict[int, Tuple[str, Dict]],
     rules: pandas.DataFrame,
     size: float,
-    minor: float,
+    minor: float | None,
 ) -> None:
     """Row prediction, but specifically for large deletions
 
@@ -591,15 +595,15 @@ def large_del(
 
 
 def process_snp_variants(
-    mutation_affects: str,
+    mutation_affects: str | None,
     predictions: Dict[int, Tuple[str, Dict]],
-    before: str,
-    after: str,
+    before: str | None,
+    after: str | None,
     mutation: str,
     rules: pandas.DataFrame,
     rules_mutation_type_vector: pandas.Series,
     rules_position_vector: pandas.Series,
-    minor: float,
+    minor: float | None,
 ) -> None:
     """Apply cascading rules for SNPs according to GARC
 
@@ -720,16 +724,16 @@ def process_snp_variants(
 
 
 def process_indel_variants(
-    mutation_affects: str,
+    mutation_affects: str | None,
     predictions: Dict[int, Tuple[str, Dict]],
     rules: pandas.DataFrame,
     rules_mutation_type_vector: pandas.Series,
     rules_position_vector: pandas.Series,
-    indel_length: int,
-    indel_type: str,
-    indel_bases: str,
-    position: int,
-    minor: float,
+    indel_length: float | None,
+    indel_type: str | None,
+    indel_bases: str | None,
+    position: int | None,
+    minor: float | None,
 ) -> None:
     """Apply the cascading rules for INDELs in GARC
 
@@ -749,7 +753,7 @@ def process_indel_variants(
         minor (float): Float for supporting evidence of minor populations (or None if
             not a minor population)
     """
-    if mutation_affects == "GENE":
+    if mutation_affects == "GENE" and indel_length is not None:
         # Large deletions are priority 1
         large_del(
             predictions, rules.loc[rules_mutation_type_vector], indel_length, minor
@@ -784,7 +788,7 @@ def process_indel_variants(
 
     # PRIORITY 3: any insertion of a specified length (or deletion) in the CDS or PROM
     #   (e.g. rpoB@*_ins_2, rpoB@*_del_3, rpoB@-*_ins_1, rpoB@-*_del_200)
-    if indel_length is not None and indel_type != "indel":
+    if indel_length is not None and indel_type is not None and indel_type != "indel":
         if mutation_affects == "CDS":
             row = rules.loc[
                 rules_mutation_type_vector
@@ -817,7 +821,7 @@ def process_indel_variants(
 
     # PRIORITY=6: an insertion (or deletion) at a specific position in the CDS or PROM
     #   (e.g. rpoB@1300_ins or rpoB@-15_del)
-    if indel_type != "indel":
+    if indel_type != "indel" and indel_type is not None:
         row = rules.loc[
             rules_mutation_type_vector
             & rules_position_vector
@@ -829,7 +833,7 @@ def process_indel_variants(
 
     # PRIORITY=7: an insertion (or deletion) of a specified length at a specific
     #   position in the CDS or PROM (e.g. rpoB@1300_ins_2 or rpoB@-15_del_200)
-    if indel_type != "indel" and indel_length is not None:
+    if indel_type != "indel" and indel_type is not None and indel_length is not None:
         row = rules.loc[
             rules_mutation_type_vector
             & rules_position_vector

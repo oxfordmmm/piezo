@@ -28,7 +28,7 @@ class ResistanceCatalogue:
 
     def predict(
         self, mutation: str, verbose: bool = False, show_evidence=False
-    ) -> Dict[str, Tuple | str] | str:
+    ) -> Dict[str, Tuple] | Dict[str, str] | str:
         """Make a prediction of a mutation's effects based on the catalogue
 
         Args:
@@ -39,7 +39,7 @@ class ResistanceCatalogue:
                 (<prediction>, <evidence>)
 
         Returns:
-            {str: str}: Dictionary mapping drug name -> prediction, or "S" if no matches
+            Dict[str, Tuple] | Dict[str, str] | str: Dictionary mapping drug name -> prediction, or if `show_evidence == True`, dictionary mapping drug name -> (prediction, evidence). If no susceptability is predicted, "S"
         """
         if verbose:
             warnings.warn(
@@ -173,7 +173,7 @@ def predict(
     mutation: str,
     verbose: bool = False,
     show_evidence: bool = False,
-) -> Dict[str, Tuple | str] | str:
+) -> Dict[str, Tuple] | Dict[str, str] | str:
     """
     Predict the effect of the given mutation on one or more antimicrobials.
 
