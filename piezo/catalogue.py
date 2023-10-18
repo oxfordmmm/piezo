@@ -39,7 +39,9 @@ class ResistanceCatalogue:
                 (<prediction>, <evidence>)
 
         Returns:
-            Dict[str, Tuple] | Dict[str, str] | str: Dictionary mapping drug name -> prediction, or if `show_evidence == True`, dictionary mapping drug name -> (prediction, evidence). If no susceptability is predicted, "S"
+            Dict[str, Tuple] | Dict[str, str] | str: Dictionary mapping drug name -> 
+                prediction, or if `show_evidence == True`, dictionary mapping drug 
+                name -> (prediction, evidence). If no susceptability is predicted, "S"
         """
         if verbose:
             warnings.warn(
