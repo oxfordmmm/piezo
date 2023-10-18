@@ -39,8 +39,8 @@ class ResistanceCatalogue:
                 (<prediction>, <evidence>)
 
         Returns:
-            Dict[str, Tuple] | Dict[str, str] | str: Dictionary mapping drug name -> 
-                prediction, or if `show_evidence == True`, dictionary mapping drug 
+            Dict[str, Tuple] | Dict[str, str] | str: Dictionary mapping drug name ->
+                prediction, or if `show_evidence == True`, dictionary mapping drug
                 name -> (prediction, evidence). If no susceptability is predicted, "S"
         """
         if verbose:
@@ -204,6 +204,8 @@ def predict(
         * for more info see the walkthrough and also the NOMENCLATURE.md file
     """
     if verbose:
-        warnings.warn("`verbose` kwarg is depreciated and will be removed in future.", UserWarning)
+        warnings.warn(
+            "`verbose` kwarg is depreciated and will be removed in future.", UserWarning
+        )
 
     return predict_GARC1(catalogue, mutation, show_evidence=show_evidence)
