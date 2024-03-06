@@ -566,8 +566,6 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
     #   part of the mutation hits it
 
     # First create a catalogue with just the rules in this multi
-    # cat = copy.deepcopy(catalogue)
-    # cat.number_rows = len(rule_mutations)
     dummy_cat = {
         "EVIDENCE": [
             ujson.dumps({"Rule hit": idx}) for (idx, _) in enumerate(rule_mutations)
