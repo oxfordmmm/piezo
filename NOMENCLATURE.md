@@ -207,6 +207,21 @@ Utilising this logic, we can produce the following rules:
 
 As such, it is recommended that any synonymous mutations are treated as such when parsing into GARC.
 
+#### Epistasis mutations
+These are a subset of multi-mutations which have specific properties. Generally speaking, there should only be a single episasis rule which is hit by a given multi-mutation. This is due to prediction heierarchies falling apart in such cases, and these rules should be specific enough that it wouldn't make logical sense for more than one rule to be hit.
+
+Catalogue syntax:
+```
+^Rv0678@*_fs&mmpl5@*_fs
+```
+
+Prediction syntax:
+```
+Any valid multi-mutation will be checked against epistasis rules.
+```
+
+
+
 ### Minor populations
 
 GARC also allows for specification of a mutation being a minor population/minor allele. 
