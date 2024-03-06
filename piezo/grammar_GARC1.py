@@ -27,7 +27,8 @@ class Catalogue(NamedTuple):
 def validate_multi(mutation: str) -> None:
     """Validate that we have a valid multi-mutation.
 
-    This checks that if a multi contains specific mutations, they should not be covered by general mutations which this multi includes.
+    This checks that if a multi contains specific mutations, they should not be covered
+    by general mutations which this multi includes.
 
     Args:
         mutation (str): Multi-mutation
@@ -36,8 +37,9 @@ def validate_multi(mutation: str) -> None:
     #   that should be reduced, so it's invalid.
     # If we were to allow defaults which cover specifics, the multi matching would break
     #
-    # Easiest way to do this is to take general rules and construct a catalogue from them
-    #   then, pass in all specific rules, and if we get a match on any of them, they are covered by a general rule
+    # Easiest way to do this is to take general rules and construct a catalogue
+    #   from them, then, pass in all specific rules, and if we get a match on any of
+    #   them, they are covered by a general rule
     rule_mutations = mutation.split("&")
     dummy_cat = {
         "EVIDENCE": [
@@ -444,7 +446,8 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
             if epi_drugs[drug][1] != "":
                 # This drug already has an epistasis rule hit so throw an error
                 raise ValueError(
-                    f"Conflicting epistasis rules for {gene_mutation}:{drug}! Check your catalogue!"
+                    f"Conflicting epistasis rules for {gene_mutation}:{drug}! "
+                    "Check your catalogue!"
                 )
             # Valid, so check for minors
             for cat, minor in zip(rule["MINOR"].split(","), minors):
@@ -510,7 +513,8 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
             elif drugs[drug][0] == "S":
                 # Drop default `S` predictions
                 del to_return[drug]
-        return to_return
+        # For whatever reason, this appeases mypy
+        return {key: value for key, value in to_return.items()}
 
     if len([key for key in drugs.keys() if drugs[key][0] != "S"]) > 0:
         # At least one multi hit
@@ -535,7 +539,8 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
 
 
 def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> bool:
-    """Determine if a given mutation matches a given rule. This takes into account wildcards.
+    """Determine if a given mutation matches a given rule.
+    This takes into account wildcards.
 
     Args:
         rule (pandas.Series): Rule to check for
@@ -555,8 +560,10 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
         # Not same number of mutations in the rule so not a match
         return False
 
-    # Bit more tricky here as we need to check that every part of the mutation matches a single part of the rule
-    # do this by constructing a dummy catalogue from the multi-rule and checking each part of the mutation hits it
+    # Bit more tricky here as we need to check that every part of the mutation matches
+    #   a single part of the rule
+    # do this by constructing a dummy catalogue from the multi-rule and checking each
+    #   part of the mutation hits it
 
     # First create a catalogue with just the rules in this multi
     # cat = copy.deepcopy(catalogue)
@@ -592,12 +599,15 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
     for mut in mutation.split("&"):
         try:
             pred = predict_GARC1(cat, mut, True)
-            if pred == "S":
+            if isinstance(pred, str):
+                # pred == "S":
                 # No results so not matched
                 return False
 
             # Pull out the multi-rule index this hit from the evidence
-            rule_idx = int(ujson.loads(pred["na"][1])["Rule hit"])
+            pred_ev = ujson.loads(pred["na"][1])
+
+            rule_idx = int(pred_ev["Rule hit"])
             r.drop([rule_idx], inplace=True)
 
             # Rebuild the catalogue object with the updated rule set
