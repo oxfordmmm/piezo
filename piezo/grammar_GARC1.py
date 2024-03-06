@@ -23,9 +23,10 @@ class Catalogue(NamedTuple):
     number_rows: int
     rules: pandas.DataFrame
 
+
 def validate_multi(mutation: str) -> None:
-    """Validate that we have a valid multi-mutation. 
-    
+    """Validate that we have a valid multi-mutation.
+
     This checks that if a multi contains specific mutations, they should not be covered by general mutations which this multi includes.
 
     Args:
@@ -39,16 +40,18 @@ def validate_multi(mutation: str) -> None:
     #   then, pass in all specific rules, and if we get a match on any of them, they are covered by a general rule
     rule_mutations = mutation.split("&")
     dummy_cat = {
-        "EVIDENCE": [ujson.dumps({"Rule hit": idx}) for (idx, _) in enumerate(rule_mutations)],
+        "EVIDENCE": [
+            ujson.dumps({"Rule hit": idx}) for (idx, _) in enumerate(rule_mutations)
+        ],
         "MUTATION": rule_mutations,
         "DRUG": ["na" for _ in rule_mutations],
-        "PREDICTION": ["R" for _ in rule_mutations]
+        "PREDICTION": ["R" for _ in rule_mutations],
     }
     r = pandas.DataFrame(dummy_cat)
     r[
         ["GENE", "MUTATION", "POSITION", "MUTATION_AFFECTS", "MUTATION_TYPE", "MINOR"]
     ] = r.apply(split_mutation, axis=1)
-    
+
     generals = r[(r["POSITION"] == "*") | (r["MUTATION"].str.contains("\?"))]
     specifics = r[(r["POSITION"] != "*") & (~r["MUTATION"].str.contains("\?"))]
     # As this is a named **tuple**, it is immutable so create a new one
@@ -57,7 +60,7 @@ def validate_multi(mutation: str) -> None:
         "generic",
         "1.0",
         "GARC1",
-        "R", # Obviously not R but RFUS are needed here
+        "R",  # Obviously not R but RFUS are needed here
         ["na"],
         generals["GENE"].tolist(),
         {"na": generals["GENE"].tolist()},
@@ -69,12 +72,17 @@ def validate_multi(mutation: str) -> None:
         try:
             pred = predict_GARC1(cat, "@".join(row[["GENE", "MUTATION"]]))
             if pred != "S":
-                raise ValueError("Badly formed mutation: " + mutation + " contains generic rules which cover specific rules!")
+                raise ValueError(
+                    "Badly formed mutation: "
+                    + mutation
+                    + " contains generic rules which cover specific rules!"
+                )
         except ValueError as e:
             if "Badly formed mutation: " in str(e):
                 # If we're catching the exception we just threw, re-throw it
                 raise e
             continue
+
 
 def split_mutation(row: pandas.Series) -> pandas.Series:
     """Take a row of the catalogue and get info about the mutation from it.
@@ -118,7 +126,7 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
 
         # Check for validity
         validate_multi(mutation)
-        
+
         return pandas.Series(
             [gene, mutation, position, mutation_affects, mutation_type, minors]
         )
@@ -435,25 +443,20 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
             drug = rule["DRUG"]
             if epi_drugs[drug][1] != "":
                 # This drug already has an epistasis rule hit so throw an error
-                raise ValueError(f"Conflicting epistasis rules for {gene_mutation}:{drug}! Check your catalogue!")
+                raise ValueError(
+                    f"Conflicting epistasis rules for {gene_mutation}:{drug}! Check your catalogue!"
+                )
             # Valid, so check for minors
             for cat, minor in zip(rule["MINOR"].split(","), minors):
                 if minor is None and cat == "":
                     # Neither are minors so add
                     epi_drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
-                elif (
-                    cat != "" and minor is not None and minor < 1 and float(cat) < 1
-                ):
+                elif cat != "" and minor is not None and minor < 1 and float(cat) < 1:
                     # FRS
                     if minor >= float(cat):
                         # Match
                         epi_drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
-                elif (
-                    cat != ""
-                    and minor is not None
-                    and minor >= 1
-                    and float(cat) >= 1
-                ):
+                elif cat != "" and minor is not None and minor >= 1 and float(cat) >= 1:
                     # COV
                     if minor >= float(cat):
                         # Match
@@ -541,17 +544,17 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
 
     Returns:
         bool: True if this mutation matches the rule
-    """    
+    """
     if rule["MUTATION"] == mutation:
         # Literal match
         return True
 
     rule_mutations = rule["MUTATION"].split("&")
-    
+
     if len(rule_mutations) != len(mutation.split("&")):
         # Not same number of mutations in the rule so not a match
         return False
-    
+
     # Bit more tricky here as we need to check that every part of the mutation matches a single part of the rule
     # do this by constructing a dummy catalogue from the multi-rule and checking each part of the mutation hits it
 
@@ -559,10 +562,12 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
     # cat = copy.deepcopy(catalogue)
     # cat.number_rows = len(rule_mutations)
     dummy_cat = {
-        "EVIDENCE": [ujson.dumps({"Rule hit": idx}) for (idx, _) in enumerate(rule_mutations)],
+        "EVIDENCE": [
+            ujson.dumps({"Rule hit": idx}) for (idx, _) in enumerate(rule_mutations)
+        ],
         "MUTATION": rule_mutations,
         "DRUG": ["na" for _ in rule_mutations],
-        "PREDICTION": ["R" for _ in rule_mutations]
+        "PREDICTION": ["R" for _ in rule_mutations],
     }
     r = pandas.DataFrame(dummy_cat)
     r[
@@ -575,7 +580,7 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
         catalogue.name,
         catalogue.version,
         catalogue.grammar,
-        "R", # Obviously not R but RFUS are needed here
+        "R",  # Obviously not R but RFUS are needed here
         ["na"],
         r["GENE"].tolist(),
         {"na": r["GENE"].tolist()},
@@ -583,7 +588,6 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
         len(r),
         r,
     )
-
 
     for mut in mutation.split("&"):
         try:
@@ -602,7 +606,7 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
                 catalogue.name,
                 catalogue.version,
                 catalogue.grammar,
-                "R", # Obviously not R but RFUS are needed here
+                "R",  # Obviously not R but RFUS are needed here
                 ["na"],
                 r["GENE"].tolist(),
                 {"na": r["GENE"].tolist()},
@@ -617,11 +621,9 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
     if len(r) == 0:
         # Must have matched every rule in the multi
         return True
-    
+
     # Not matched everything, so not a match
     return False
-
-    
 
 
 def merge_predictions(
