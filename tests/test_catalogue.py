@@ -39,7 +39,7 @@ def test_catalogue__init__(test_catalogue, genes, gene_lookup):
 
     assert test_catalogue.catalogue.grammar == "GARC1"
 
-    assert test_catalogue.catalogue.number_rows == 45
+    assert test_catalogue.catalogue.number_rows == 48
 
     assert test_catalogue.catalogue.drugs == ["DRUG_A", "DRUG_B"]
 
@@ -367,6 +367,14 @@ def test_multi(test_catalogue):
 
     # Shouldn't hit anything other than 'S'
     assert test_catalogue.predict("M2@A5A&M2@K6K") == "S"
+
+    # Should hit a general `R` rule for DRUG_A and a general epistasis rule for DRUG_B
+    # There's also a specific multi for `R` for DRUG_B, so directly checks that epistasis > R
+    assert test_catalogue.predict("M2@142_del&M2@M1L") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue.predict("M2@142_del&M2@M1L", show_evidence=True) == {
+        "DRUG_A": ("R", {"row": 45}),
+        "DRUG_B": ("S", {"row": 47}),
+    }
 
 
 @pytest.mark.parametrize(
