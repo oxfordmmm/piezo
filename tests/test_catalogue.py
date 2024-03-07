@@ -499,6 +499,10 @@ def test_misc():
 
     with pytest.raises(ValueError):
         piezo.ResistanceCatalogue("tests/test-catalogue/broken-catalogue6.csv")
+    
+    with pytest.raises(ValueError) as e:
+        piezo.ResistanceCatalogue("tests/test-catalogue/broken-catalogue7.csv")
+    assert str(e.value) == "Badly formed mutation: M2@*?&M2@S450L contains generic rules which cover specific rules!"
 
     # Checking for deprication warnings
     with pytest.warns(UserWarning):
