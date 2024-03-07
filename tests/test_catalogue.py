@@ -519,7 +519,7 @@ def test_misc():
 
     # Wildcard ins shouldn't give prediction on del
     # (yes this sounds ridiculous but was present for years)
-    # This catalogue has a dummy drug ("M3") which doesn't have default rules, 
+    # This catalogue has a dummy drug ("M3") which doesn't have default rules,
     #   so this should crash if it misses the `*_ins`
     test_catalogue = piezo.ResistanceCatalogue(
         "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-FRS.csv"
