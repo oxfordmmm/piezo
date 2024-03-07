@@ -531,3 +531,14 @@ def test_misc():
     assert test_catalogue.predict("M2@del_0.8:0.01") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.5:0.03") == {"DRUG_A": "U", "DRUG_B": "U"}
+
+    # Wildcard ins shouldn't give prediction on del
+    # (yes this sounds ridiculous but was present for years)
+    # This catalogue has a dummy drug ("M3") which doesn't have default rules,
+    #   so this should crash if it misses the `*_ins`
+    test_catalogue = piezo.ResistanceCatalogue(
+        "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-FRS.csv"
+    )
+    assert test_catalogue.predict("M3@12_ins_c") == {"DRUG_B": "R"}
+    with pytest.raises(ValueError):
+        print(test_catalogue.predict("M3@12_del_c"))

@@ -992,16 +992,17 @@ def process_indel_variants(
     row_prediction(row, predictions, 1, minor)
 
     # PRIORITY 2: rpoB@*_ins, rpoB@*_del any insertion (or deletion) in the CDS or PROM
-    if mutation_affects == "CDS":
-        row = rules.loc[
-            rules_mutation_type_vector & (rules.MUTATION.isin(["*_ins", "*_del"]))
-        ]
-    else:
-        row = rules.loc[
-            rules_mutation_type_vector & (rules.MUTATION.isin(["-*_ins", "-*_del"]))
-        ]
-    # any insertion (or deletion) in the CDS or PROM
-    row_prediction(row, predictions, 2, minor)
+    if indel_type is not None:
+        if mutation_affects == "CDS":
+            row = rules.loc[
+                rules_mutation_type_vector & (rules.MUTATION.isin(["*_" + indel_type]))
+            ]
+        else:
+            row = rules.loc[
+                rules_mutation_type_vector & (rules.MUTATION.isin(["-*_" + indel_type]))
+            ]
+        # any insertion (or deletion) in the CDS or PROM
+        row_prediction(row, predictions, 2, minor)
 
     # PRIORITY 3: any insertion of a specified length (or deletion) in the CDS or PROM
     #   (e.g. rpoB@*_ins_2, rpoB@*_del_3, rpoB@-*_ins_1, rpoB@-*_del_200)
