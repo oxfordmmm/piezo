@@ -39,7 +39,7 @@ def test_catalogue__init__(test_catalogue, genes, gene_lookup):
 
     assert test_catalogue.catalogue.grammar == "GARC1"
 
-    assert test_catalogue.catalogue.number_rows == 45
+    assert test_catalogue.catalogue.number_rows == 48
 
     assert test_catalogue.catalogue.drugs == ["DRUG_A", "DRUG_B"]
 
@@ -368,6 +368,14 @@ def test_multi(test_catalogue):
     # Shouldn't hit anything other than 'S'
     assert test_catalogue.predict("M2@A5A&M2@K6K") == "S"
 
+    # Should hit a general `R` rule for DRUG_A and a general epistasis rule for DRUG_B
+    # There's also a specific multi for `R` for DRUG_B, so directly checks that epistasis > R
+    assert test_catalogue.predict("M2@142_del&M2@M1L") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue.predict("M2@142_del&M2@M1L", show_evidence=True) == {
+        "DRUG_A": ("R", {"row": 45}),
+        "DRUG_B": ("S", {"row": 47}),
+    }
+
 
 @pytest.mark.parametrize(
     "test_catalogue",
@@ -492,6 +500,13 @@ def test_misc():
     with pytest.raises(ValueError):
         piezo.ResistanceCatalogue("tests/test-catalogue/broken-catalogue6.csv")
 
+    with pytest.raises(ValueError) as e:
+        piezo.ResistanceCatalogue("tests/test-catalogue/broken-catalogue7.csv")
+    assert (
+        str(e.value)
+        == "Badly formed mutation: M2@*?&M2@S450L contains generic rules which cover specific rules!"
+    )
+
     # Checking for deprication warnings
     with pytest.warns(UserWarning):
         test_catalogue.predict("M2@L73P", verbose=True)
@@ -516,3 +531,14 @@ def test_misc():
     assert test_catalogue.predict("M2@del_0.8:0.01") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.5:0.03") == {"DRUG_A": "U", "DRUG_B": "U"}
+
+    # Wildcard ins shouldn't give prediction on del
+    # (yes this sounds ridiculous but was present for years)
+    # This catalogue has a dummy drug ("M3") which doesn't have default rules,
+    #   so this should crash if it misses the `*_ins`
+    test_catalogue = piezo.ResistanceCatalogue(
+        "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-FRS.csv"
+    )
+    assert test_catalogue.predict("M3@12_ins_c") == {"DRUG_B": "R"}
+    with pytest.raises(ValueError):
+        print(test_catalogue.predict("M3@12_del_c"))

@@ -1,8 +1,8 @@
 #! /usr/bin/env python
 """All logic required to parse and generate predictions from a catalogue in GARC1
 """
-
 import re
+import ujson
 
 import pandas
 
@@ -24,6 +24,68 @@ class Catalogue(NamedTuple):
     rules: pandas.DataFrame
 
 
+def validate_multi(mutation: str) -> None:
+    """Validate that we have a valid multi-mutation.
+
+    This checks that if a multi contains specific mutations, they should not be covered
+    by general mutations which this multi includes.
+
+    Args:
+        mutation (str): Multi-mutation
+    """
+    # If we have a specific rule, combined with a general rule which covers it,
+    #   that should be reduced, so it's invalid.
+    # If we were to allow defaults which cover specifics, the multi matching would break
+    #
+    # Easiest way to do this is to take general rules and construct a catalogue
+    #   from them, then, pass in all specific rules, and if we get a match on any of
+    #   them, they are covered by a general rule
+    rule_mutations = mutation.split("&")
+    dummy_cat = {
+        "EVIDENCE": [
+            ujson.dumps({"Rule hit": idx}) for (idx, _) in enumerate(rule_mutations)
+        ],
+        "MUTATION": rule_mutations,
+        "DRUG": ["na" for _ in rule_mutations],
+        "PREDICTION": ["R" for _ in rule_mutations],
+    }
+    r = pandas.DataFrame(dummy_cat)
+    r[
+        ["GENE", "MUTATION", "POSITION", "MUTATION_AFFECTS", "MUTATION_TYPE", "MINOR"]
+    ] = r.apply(split_mutation, axis=1)
+
+    generals = r[(r["POSITION"] == "*") | (r["MUTATION"].str.contains("\?"))]
+    specifics = r[(r["POSITION"] != "*") & (~r["MUTATION"].str.contains("\?"))]
+    # As this is a named **tuple**, it is immutable so create a new one
+    cat = Catalogue(
+        "NC_000962.3",
+        "generic",
+        "1.0",
+        "GARC1",
+        "R",  # Obviously not R but RFUS are needed here
+        ["na"],
+        generals["GENE"].tolist(),
+        {"na": generals["GENE"].tolist()},
+        {gene: ["na"] for gene in generals["GENE"].tolist()},
+        len(generals),
+        generals,
+    )
+    for _, row in specifics.iterrows():
+        try:
+            pred = predict_GARC1(cat, "@".join(row[["GENE", "MUTATION"]]))
+            if pred != "S":
+                raise ValueError(
+                    "Badly formed mutation: "
+                    + mutation
+                    + " contains generic rules which cover specific rules!"
+                )
+        except ValueError as e:
+            if "Badly formed mutation: " in str(e):
+                # If we're catching the exception we just threw, re-throw it
+                raise e
+            continue
+
+
 def split_mutation(row: pandas.Series) -> pandas.Series:
     """Take a row of the catalogue and get info about the mutation from it.
     This includes the type, ref, alt, position and minor populations
@@ -39,21 +101,33 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
             type of position (i.e PROM/CDS), mutation type (i.e INDEL/SNP/MULTI),
             support for minor populations
     """
+    # Strip any whitespace as this can cause issues
+    row["MUTATION"] = row["MUTATION"].strip()
     if "&" in row["MUTATION"]:
         # Multi-mutation so don't try to split it out in the same way
         gene = "MULTI"
+
+        if row["MUTATION"][0] == "^":
+            mutation_type = "EPISTASIS"
+            row["MUTATION"] = row["MUTATION"][1::]
+        else:
+            mutation_type = "MULTI"
+
         # Ensure mutations are in a reproducable order
         mutation = "&".join(sorted(list(row["MUTATION"].split("&"))))
 
         position = None
         mutation_affects = None
-        mutation_type = "MULTI"
 
         # Check for minor populations (and remove, we'll check these separately)
         minors = ",".join(
             [mut.split(":")[-1] if ":" in mut else "" for mut in mutation.split("&")]
         )
+
         mutation = "&".join([mut.split(":")[0] for mut in mutation.split("&")])
+
+        # Check for validity
+        validate_multi(mutation)
 
         return pandas.Series(
             [gene, mutation, position, mutation_affects, mutation_type, minors]
@@ -360,15 +434,48 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
         [mut.split(":")[0] for mut in sorted_mutation.split("&")]
     )
 
+    # Check epistasis first
+    epi_rules = catalogue.rules[catalogue.rules["MUTATION_TYPE"] == "EPISTASIS"]
+    # Note the use of "" here instead of "{}" to allow empty evidence fields
+    epi_drugs = {drug: ("S", "") for drug in catalogue.drugs}
+    values = catalogue.values
+    for _, rule in epi_rules.iterrows():
+        if match_multi(rule, sorted_mutation, catalogue):
+            # Epistasis rule hit
+            drug = rule["DRUG"]
+            if epi_drugs[drug][1] != "":
+                # This drug already has an epistasis rule hit so throw an error
+                raise ValueError(
+                    f"Conflicting epistasis rules for {gene_mutation}:{drug}! "
+                    "Check your catalogue!"
+                )
+            # Valid, so check for minors
+            for cat, minor in zip(rule["MINOR"].split(","), minors):
+                if minor is None and cat == "":
+                    # Neither are minors so add
+                    epi_drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
+                elif cat != "" and minor is not None and minor < 1 and float(cat) < 1:
+                    # FRS
+                    if minor >= float(cat):
+                        # Match
+                        epi_drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
+                elif cat != "" and minor is not None and minor >= 1 and float(cat) >= 1:
+                    # COV
+                    if minor >= float(cat):
+                        # Match
+                        epi_drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
+
     # Get the multi rules
     multi_rules = catalogue.rules[catalogue.rules["MUTATION_TYPE"] == "MULTI"]
 
     drugs = {drug: ("S", "{}") for drug in catalogue.drugs}
-    values = catalogue.values
     for _, rule in multi_rules.iterrows():
-        if rule["MUTATION"] == sorted_mutation:
+        drug = rule["DRUG"]
+        if epi_drugs[drug][1] != "":
+            # Epistasis rule already covers this, so skip it
+            continue
+        if match_multi(rule, sorted_mutation, catalogue):
             # We have a match! Prioritise predictions based on values
-            drug = rule["DRUG"]
             if values.index(rule["PREDICTION"]) < values.index(drugs[drug][0]):
                 # The prediction is closer to the start of the values list, so should
                 #   take priority
@@ -396,7 +503,21 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
                             drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
 
     # Check to ensure we have at least 1 prediction
+    if len([key for key in epi_drugs.keys() if epi_drugs[key][1] != ""]) > 0:
+        # Epistasis hit(s) so join with the multis
+        to_return = drugs
+        for drug in epi_drugs:
+            if epi_drugs[drug][1] != "":
+                # This drug has an epi match
+                to_return[drug] = epi_drugs[drug]
+            elif drugs[drug][0] == "S":
+                # Drop default `S` predictions
+                del to_return[drug]
+        # For whatever reason, this appeases mypy
+        return {key: value for key, value in to_return.items()}
+
     if len([key for key in drugs.keys() if drugs[key][0] != "S"]) > 0:
+        # At least one multi hit
         return {drug: drugs[drug] for drug in drugs.keys() if drugs[drug][0] != "S"}
 
     # Nothing predicted, so try each individual mutation
@@ -415,6 +536,102 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
             predictions[mutation] = pred
 
     return merge_predictions(predictions, catalogue)
+
+
+def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> bool:
+    """Determine if a given mutation matches a given rule.
+    This takes into account wildcards.
+
+    Args:
+        rule (pandas.Series): Rule to check for
+        mutation (str): Mutation to check for
+        catalogue (Catalogue): Catalogue this rule is from
+
+    Returns:
+        bool: True if this mutation matches the rule
+    """
+    if rule["MUTATION"] == mutation:
+        # Literal match
+        return True
+
+    rule_mutations = rule["MUTATION"].split("&")
+
+    if len(rule_mutations) != len(mutation.split("&")):
+        # Not same number of mutations in the rule so not a match
+        return False
+
+    # Bit more tricky here as we need to check that every part of the mutation matches
+    #   a single part of the rule
+    # do this by constructing a dummy catalogue from the multi-rule and checking each
+    #   part of the mutation hits it
+
+    # First create a catalogue with just the rules in this multi
+    dummy_cat = {
+        "EVIDENCE": [
+            ujson.dumps({"Rule hit": idx}) for (idx, _) in enumerate(rule_mutations)
+        ],
+        "MUTATION": rule_mutations,
+        "DRUG": ["na" for _ in rule_mutations],
+        "PREDICTION": ["R" for _ in rule_mutations],
+    }
+    r = pandas.DataFrame(dummy_cat)
+    r[
+        ["GENE", "MUTATION", "POSITION", "MUTATION_AFFECTS", "MUTATION_TYPE", "MINOR"]
+    ] = r.apply(split_mutation, axis=1)
+
+    # As this is a named **tuple**, it is immutable so create a new one
+    cat = Catalogue(
+        catalogue.genbank_reference,
+        catalogue.name,
+        catalogue.version,
+        catalogue.grammar,
+        "R",  # Obviously not R but RFUS are needed here
+        ["na"],
+        r["GENE"].tolist(),
+        {"na": r["GENE"].tolist()},
+        {gene: ["na"] for gene in r["GENE"].tolist()},
+        len(r),
+        r,
+    )
+
+    for mut in mutation.split("&"):
+        try:
+            pred = predict_GARC1(cat, mut, True)
+            if isinstance(pred, str):
+                # pred == "S":
+                # No results so not matched
+                return False
+
+            # Pull out the multi-rule index this hit from the evidence
+            pred_ev = ujson.loads(pred["na"][1])
+
+            rule_idx = int(pred_ev["Rule hit"])
+            r.drop([rule_idx], inplace=True)
+
+            # Rebuild the catalogue object with the updated rule set
+            cat = Catalogue(
+                catalogue.genbank_reference,
+                catalogue.name,
+                catalogue.version,
+                catalogue.grammar,
+                "R",  # Obviously not R but RFUS are needed here
+                ["na"],
+                r["GENE"].tolist(),
+                {"na": r["GENE"].tolist()},
+                {gene: ["na"] for gene in r["GENE"].tolist()},
+                len(r),
+                r,
+            )
+        except ValueError:
+            # No rules for this drugs etc
+            return False
+
+    if len(r) == 0:
+        # Must have matched every rule in the multi
+        return True
+
+    # Not matched everything, so not a match
+    return False
 
 
 def merge_predictions(
@@ -775,16 +992,17 @@ def process_indel_variants(
     row_prediction(row, predictions, 1, minor)
 
     # PRIORITY 2: rpoB@*_ins, rpoB@*_del any insertion (or deletion) in the CDS or PROM
-    if mutation_affects == "CDS":
-        row = rules.loc[
-            rules_mutation_type_vector & (rules.MUTATION.isin(["*_ins", "*_del"]))
-        ]
-    else:
-        row = rules.loc[
-            rules_mutation_type_vector & (rules.MUTATION.isin(["-*_ins", "-*_del"]))
-        ]
-    # any insertion (or deletion) in the CDS or PROM
-    row_prediction(row, predictions, 2, minor)
+    if indel_type is not None:
+        if mutation_affects == "CDS":
+            row = rules.loc[
+                rules_mutation_type_vector & (rules.MUTATION.isin(["*_" + indel_type]))
+            ]
+        else:
+            row = rules.loc[
+                rules_mutation_type_vector & (rules.MUTATION.isin(["-*_" + indel_type]))
+            ]
+        # any insertion (or deletion) in the CDS or PROM
+        row_prediction(row, predictions, 2, minor)
 
     # PRIORITY 3: any insertion of a specified length (or deletion) in the CDS or PROM
     #   (e.g. rpoB@*_ins_2, rpoB@*_del_3, rpoB@-*_ins_1, rpoB@-*_del_200)
