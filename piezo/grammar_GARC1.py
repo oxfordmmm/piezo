@@ -401,7 +401,10 @@ def predict_GARC1(
                 result[compound] = ("S", {})
             else:
                 raise ValueError(
-                    "No entry found in the catalogue for " + gene_mutation + " " + compound
+                    "No entry found in the catalogue for "
+                    + gene_mutation
+                    + " "
+                    + compound
                 )
         else:
             final_prediction: Tuple = predictions[sorted(predictions)[-1]]

@@ -539,6 +539,5 @@ def test_misc():
     with pytest.raises(ValueError):
         print(test_catalogue.predict("M3@12_del_c"))
 
-    
     # Double checking that a minor allele doesn't hit a general rule anymore
     assert test_catalogue.predict("M2@37_del_c:0.2") == {"DRUG_A": "S", "DRUG_B": "S"}
