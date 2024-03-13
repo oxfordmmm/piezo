@@ -392,19 +392,19 @@ def test_multi(test_catalogue):
 def test_minor_population(test_catalogue):
     # COV
     # Exact match
-    assert test_catalogue.predict("M2@F75V:2") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@F75V:2") == {"DRUG_A": "R", "DRUG_B": "S"}
 
     # Greater than
-    assert test_catalogue.predict("M2@F75V:3") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue.predict("M2@F75V:4") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue.predict("M2@F75V:350") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@F75V:3") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue.predict("M2@F75V:4") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue.predict("M2@F75V:350") == {"DRUG_A": "R", "DRUG_B": "S"}
     assert test_catalogue.predict("M2@F75V:123456789123456789") == {
         "DRUG_A": "R",
-        "DRUG_B": "U",
+        "DRUG_B": "S",
     }
 
     # Less than (so should just hit a default for now)
-    assert test_catalogue.predict("M2@F75V:1") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@F75V:1") == {"DRUG_A": "S", "DRUG_B": "S"}
 
     # Should fail
     with pytest.raises(Exception):
@@ -413,13 +413,11 @@ def test_minor_population(test_catalogue):
         test_catalogue.predict("M2@F75V:-1")
 
     # Multi
-    assert test_catalogue.predict("M2@45_del_aaa:6&M2@F75V:5") == {
-        "DRUG_A": "R",
+    assert test_catalogue.predict("M2@G74!:4&M2@G74X:2") == {
         "DRUG_B": "U",
     }
-    assert test_catalogue.predict("M2@45_del_a:2&M2@F75V:3") == {
-        "DRUG_A": "R",
-        "DRUG_B": "R",
+    assert test_catalogue.predict("M2@G74!:17&M2@G74X:2") == {
+        "DRUG_B": "U",
     }
 
     # FRS
@@ -428,20 +426,20 @@ def test_minor_population(test_catalogue):
     )
 
     # Exact match
-    assert test_catalogue2.predict("M2@F75V:0.03") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue2.predict("M2@F75V:0.03") == {"DRUG_A": "R", "DRUG_B": "S"}
 
     # Greater than
-    assert test_catalogue2.predict("M2@F75V:0.04") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue2.predict("M2@F75V:0.05") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue2.predict("M2@F75V:0.9") == {"DRUG_A": "R", "DRUG_B": "U"}
+    assert test_catalogue2.predict("M2@F75V:0.04") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue2.predict("M2@F75V:0.05") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue2.predict("M2@F75V:0.9") == {"DRUG_A": "R", "DRUG_B": "S"}
     assert test_catalogue2.predict("M2@F75V:0.123456789123456789") == {
         "DRUG_A": "R",
-        "DRUG_B": "U",
+        "DRUG_B": "S",
     }
 
     # Less than (so should just hit a default for now)
-    assert test_catalogue2.predict("M2@F75V:0.01") == {"DRUG_A": "U", "DRUG_B": "U"}
-    assert test_catalogue2.predict("M2@F75V:0.02") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue2.predict("M2@F75V:0.01") == {"DRUG_A": "S", "DRUG_B": "S"}
+    assert test_catalogue2.predict("M2@F75V:0.02") == {"DRUG_A": "S", "DRUG_B": "S"}
 
     # Should fail
     with pytest.raises(Exception):
@@ -449,13 +447,11 @@ def test_minor_population(test_catalogue):
     with pytest.raises(Exception):
         test_catalogue2.predict("M2@F75V:-0.1")
 
-    assert test_catalogue2.predict("M2@45_del_aaa:0.01&M2@F75V:0.5") == {
-        "DRUG_A": "R",
+    assert test_catalogue2.predict("M2@G74!:0.04&M2@G74X:0.02") == {
         "DRUG_B": "U",
     }
-    assert test_catalogue2.predict("M2@45_del_a:0.12&M2@F75V:0.03") == {
-        "DRUG_A": "R",
-        "DRUG_B": "R",
+    assert test_catalogue2.predict("M2@G74!:0.84&M2@G74X:0.20") == {
+        "DRUG_B": "U",
     }
 
     assert test_catalogue.predict("M2@G74!:4&M2@G74X:2") == {"DRUG_B": "U"}
@@ -516,9 +512,9 @@ def test_misc():
         "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-minor-COV.csv"
     )
     assert test_catalogue.predict("M2@del_1.0") == {"DRUG_A": "U", "DRUG_B": "U"}
-    assert test_catalogue.predict("M2@del_0.9:3") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue.predict("M2@del_0.85:10") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue.predict("M2@del_0.8:1") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.9:3") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue.predict("M2@del_0.85:10") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue.predict("M2@del_0.8:1") == {"DRUG_A": "S", "DRUG_B": "S"}
     assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.5") == {"DRUG_A": "U", "DRUG_B": "U"}
 
@@ -526,11 +522,11 @@ def test_misc():
         "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS-minor-FRS.csv"
     )
     assert test_catalogue.predict("M2@del_1.0") == {"DRUG_A": "U", "DRUG_B": "U"}
-    assert test_catalogue.predict("M2@del_0.9:0.3") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue.predict("M2@del_0.85:0.99") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue.predict("M2@del_0.8:0.01") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.9:0.3") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue.predict("M2@del_0.85:0.99") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue.predict("M2@del_0.8:0.01") == {"DRUG_A": "S", "DRUG_B": "S"}
     assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
-    assert test_catalogue.predict("M2@del_0.5:0.03") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@del_0.5:0.03") == {"DRUG_A": "S", "DRUG_B": "S"}
 
     # Wildcard ins shouldn't give prediction on del
     # (yes this sounds ridiculous but was present for years)
@@ -542,3 +538,7 @@ def test_misc():
     assert test_catalogue.predict("M3@12_ins_c") == {"DRUG_B": "R"}
     with pytest.raises(ValueError):
         print(test_catalogue.predict("M3@12_del_c"))
+
+    
+    # Double checking that a minor allele doesn't hit a general rule anymore
+    assert test_catalogue.predict("M2@37_del_c:0.2") == {"DRUG_A": "S", "DRUG_B": "S"}
