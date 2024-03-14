@@ -54,8 +54,8 @@ def validate_multi(mutation: str) -> None:
         ["GENE", "MUTATION", "POSITION", "MUTATION_AFFECTS", "MUTATION_TYPE", "MINOR"]
     ] = r.apply(split_mutation, axis=1)
 
-    generals = r[(r["POSITION"] == "*") | (r["MUTATION"].str.contains("\?"))]
-    specifics = r[(r["POSITION"] != "*") & (~r["MUTATION"].str.contains("\?"))]
+    generals = r[(r["POSITION"] == "*") | (r["MUTATION"].str.contains(r"\?"))]
+    specifics = r[(r["POSITION"] != "*") & (~r["MUTATION"].str.contains(r"\?"))]
     # As this is a named **tuple**, it is immutable so create a new one
     cat = Catalogue(
         "NC_000962.3",
@@ -396,13 +396,19 @@ def predict_GARC1(
 
         if not predictions:
             # all mutations should hit at least one of the default entries, so if this
-            #   doesn't happen, something is wrong
-            raise ValueError(
-                "No entry found in the catalogue for " + gene_mutation + " " + compound
-            )
-
-        final_prediction: Tuple = predictions[sorted(predictions)[-1]]
-        result[compound] = final_prediction
+            #   doesn't happen, something is wrong UNLESS the mutation given is a minor allele
+            if ":" in gene_mutation:
+                result[compound] = ("S", {})
+            else:
+                raise ValueError(
+                    "No entry found in the catalogue for "
+                    + gene_mutation
+                    + " "
+                    + compound
+                )
+        else:
+            final_prediction: Tuple = predictions[sorted(predictions)[-1]]
+            result[compound] = final_prediction
 
     if show_evidence or isinstance(result, str):
         return result
@@ -737,12 +743,6 @@ def row_prediction(
                         # Match
                         pred = row["PREDICTION"]
                         evidence = row["EVIDENCE"]
-
-                else:
-                    # Mismatch, so only give a match for defaults
-                    if "*" in row["MUTATION"]:
-                        pred = row["PREDICTION"]
-                        evidence = row["EVIDENCE"]
     if pred:
         predictions[int(priority)] = (str(pred), evidence)
 
@@ -798,12 +798,6 @@ def large_del(
                     # We have COV
                     if minor >= float(rule["MINOR"]):
                         # Match
-                        pred = rule["PREDICTION"]
-                        evidence = rule["EVIDENCE"]
-                        current = percentage
-                else:
-                    # Mismatch so only match default
-                    if rule["MUTATION"] == "del_0.0":
                         pred = rule["PREDICTION"]
                         evidence = rule["EVIDENCE"]
                         current = percentage
