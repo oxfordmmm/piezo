@@ -247,6 +247,12 @@ def process_catalogue_GARC1(
             .count()
         )
 
+        # Exclude multi/epistasis rules from this as epistasis rules override R
+        multis = rules[
+            (rules["MUTATION_TYPE"] == "EPISTASIS")
+            | (rules["MUTATION_TYPE"] == "MULTI")
+        ]
+
         # index the rules so we can right join
         rules.set_index(["DRUG", "GENE"], inplace=True)
 
@@ -256,6 +262,23 @@ def process_catalogue_GARC1(
 
         # remove the index
         rules.reset_index(inplace=True)
+
+        # Add back multi/epistais rules now
+        rules = pandas.concat([rules, multis])
+        # Some multis (but not all) can be duplicated here, so drop duplicate entries
+        # Note that drop_duplicates doesn't like the JSON columns, so de-duplicate on other fields
+        rules.drop_duplicates(
+            inplace=True,
+            subset=[
+                "DRUG",
+                "GENE",
+                "MUTATION",
+                "POSITION",
+                "MUTATION_AFFECTS",
+                "MUTATION_TYPE",
+                "MINOR",
+            ],
+        )
 
     # create a list of the genes mentioned in the catalogue
     genes = list(rules.GENE.unique())
