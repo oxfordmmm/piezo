@@ -249,7 +249,8 @@ def process_catalogue_GARC1(
 
         # Exclude multi/epistasis rules from this as epistasis rules override R
         multis = rules[
-            (rules["MUTATION_TYPE"] == "EPISTASIS") | (rules["MUTATION_TYPE"] == "MULTI")
+            (rules["MUTATION_TYPE"] == "EPISTASIS")
+            | (rules["MUTATION_TYPE"] == "MULTI")
         ]
 
         # index the rules so we can right join
@@ -262,7 +263,7 @@ def process_catalogue_GARC1(
         # remove the index
         rules.reset_index(inplace=True)
 
-        # Add back multi/epistais rules now 
+        # Add back multi/epistais rules now
         rules = pandas.concat([rules, multis])
 
     # create a list of the genes mentioned in the catalogue
