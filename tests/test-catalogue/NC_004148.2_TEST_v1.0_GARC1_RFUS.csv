@@ -47,3 +47,11 @@ NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M2@del_0.0,U,{},"{""row"": 44}",{}
 NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M2@*_del&M2@M1?,R,{},"{""row"": 45}",{}
 NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_B,M2@142_del&M2@M1?,R,{},"{""row"": 46}",{}
 NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_B,^M2@*_del&M2@M1?,S,{},"{""row"": 47}",{}
+NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_B,M1@*?,U,{},"{""row"": 48}",{}
+NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_B,M1@*=,S,{},"{""row"": 49}",{}
+NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_B,M1@*_indel,U,{},"{""row"": 50}",{}
+NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_B,M1@-*_indel,U,{},"{""row"": 51}",{}
+NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M1@*?,U,{},"{""row"": 52}",{}
+NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M1@*=,S,{},"{""row"": 53}",{}
+NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M1@*_indel,U,{},"{""row"": 54}",{}
+NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M1@-*_indel,U,{},"{""row"": 55}",{}
