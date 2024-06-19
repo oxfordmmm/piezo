@@ -422,6 +422,10 @@ def predict_GARC1(
             #   doesn't happen, something is wrong UNLESS the mutation given is a minor allele
             if ":" in gene_mutation:
                 result[compound] = ("S", {})
+            elif mutation_type == "SNP" and after in ["X", "x"]:
+                # Null call with no specific row matches, so return S
+                # as it doesn't make sense to match defaults for a null call
+                result[compound] = ("S", {})
             else:
                 raise ValueError(
                     "No entry found in the catalogue for "
@@ -868,14 +872,16 @@ def process_snp_variants(
     elif before != after:
         # PRIORITY=2: nonsynoymous mutation at any position in the CDS or PROM
         #   (e.g. rpoB_*? or rpoB_-*?)
-        if mutation_affects == "CDS":
-            row = rules.loc[rules_mutation_type_vector & (rules.MUTATION == "*?")]
-            # nonsyn SNP at any position in the CDS
-            row_prediction(row, predictions, 2, minor)
-        else:
-            row = rules.loc[rules_mutation_type_vector & (rules.MUTATION == "-*?")]
-            # nonsyn SNP at any position in the PROM
-            row_prediction(row, predictions, 2, minor)
+        if mutation[-1] not in ["X", "x"]:
+            # Don't let null calls hit default rules
+            if mutation_affects == "CDS":
+                row = rules.loc[rules_mutation_type_vector & (rules.MUTATION == "*?")]
+                # nonsyn SNP at any position in the CDS
+                row_prediction(row, predictions, 2, minor)
+            else:
+                row = rules.loc[rules_mutation_type_vector & (rules.MUTATION == "-*?")]
+                # nonsyn SNP at any position in the PROM
+                row_prediction(row, predictions, 2, minor)
         # PRIORITY=3: het mutation at any position in the CDS or PROM (e.g. rpoB@*Z
         #   or rpoB@-*z)
         if mutation[-1] in ["Z", "z", "O", "o", "X", "x"]:

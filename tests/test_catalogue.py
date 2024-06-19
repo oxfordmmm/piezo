@@ -11,8 +11,9 @@ import piezo
             piezo.ResistanceCatalogue(
                 "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"
             ),
-            ["M2", "N", "MULTI"],
+            ["M1", "M2", "N", "MULTI"],
             {
+                "M1": ["DRUG_A", "DRUG_B"],
                 "M2": ["DRUG_A", "DRUG_B"],
                 "MULTI": ["DRUG_A", "DRUG_B"],
                 "N": ["DRUG_A"],
@@ -23,8 +24,12 @@ import piezo
                 "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv",
                 prediction_subset_only=True,
             ),
-            ["M2", "MULTI"],
-            {"M2": ["DRUG_A", "DRUG_B"], "MULTI": ["DRUG_A", "DRUG_B"]},
+            ["M1", "M2", "MULTI"],
+            {
+                "M1": ["DRUG_A", "DRUG_B"],
+                "M2": ["DRUG_A", "DRUG_B"],
+                "MULTI": ["DRUG_A", "DRUG_B"],
+            },
         ),
     ],
 )
@@ -39,7 +44,7 @@ def test_catalogue__init__(test_catalogue, genes, gene_lookup):
 
     assert test_catalogue.catalogue.grammar == "GARC1"
 
-    assert test_catalogue.catalogue.number_rows == 48
+    assert test_catalogue.catalogue.number_rows == 56
 
     assert test_catalogue.catalogue.drugs == ["DRUG_A", "DRUG_B"]
 
@@ -96,6 +101,13 @@ def test_catalogue_prediction_snps(test_catalogue):
 
     # check a null that hits a specific rule for DRUG_A
     assert test_catalogue.predict("M2@G74X") == {"DRUG_A": "F", "DRUG_B": "S"}
+
+    # If a null doesn't hit a specific rule, it shouldn't hit defaults of U
+    assert test_catalogue.predict("M1@A12X") == {"DRUG_A": "S", "DRUG_B": "S"}
+    assert test_catalogue.predict("M1@A12X", show_evidence=True) == {
+        "DRUG_A": ("S", {}),
+        "DRUG_B": ("S", {}),
+    }
 
     # check hitting a wildtype row
     assert test_catalogue.predict("M2@G74I") == {"DRUG_A": "U", "DRUG_B": "U"}
