@@ -70,46 +70,46 @@ indicates the absence of gene *oxa48*.
 
 The general format is
 
-`gene_mutation`
+`gene@mutation`
 
-Splitting the mutation on underscore (`_`) therefore always gives you 2 strings which is used to identfy this as a SNP. Below are three examples for a CDS, RNA and PROM SNP:
+Splitting the mutation on `@` therefore always gives you 2 strings which is used to identfy this as a SNP. Below are three examples for a CDS, RNA and PROM SNP:
 
-`rpoB_S450L`, `rrs_a1402t` and `fabG1_c-15t`.
+`rpoB@S450L`, `rrs@a1402t` and `fabG1@c-15t`.
 
-Note that position is context dependent! Hence for the CDS mutation it is amino acid number, whilst for the RNA and PROM mutation it is nucleotide number! Since the reference amino acid or base is recorded in all cases, this is always checked against the supplied (H37rV) Genbank file and a warning is logged if it is different - this likely indicates a different reference was used to define the mutation. The catalogue has, however, been checked for consistency against the catalogue using [gemucator](https://github.com/philipwfowler/gemucator) so any warnings generate merit investigation.
+Note that position is context dependent! Hence for the CDS mutation it is amino acid number, whilst for the RNA and PROM mutation it is nucleotide number! Since the reference amino acid or base is recorded in all cases, this is always checked against the supplied (H37rV) Genbank file and a warning is logged if it is different - this likely indicates a different reference was used to define the mutation.
 
 Any non-synonymous mutation can be encoded as
 
-`rpoB_S450?`, `rrs_a1402?` and `fabG1_c-15?`
+`rpoB@S450?`, `rrs@a1402?` and `fabG1@c-15?`
 
 Any non-synonymous (which is has to be) mutation to the stop codon only makes sense for CDS mutations i.e.
 
-`rpoB_!1172?`
+`rpoB@!1172?`
 
 The synonymous mutations are obviously
 
-`rpoB_S450S`, `rrs_a1402a`, `fabG1_c-15c`
+`rpoB@S450S`, `rrs@a1402a`, `fabG1@c-15c`
 
 Allowing `*` to mean 'any position' then we can start to create more complex rules.
 
-For example, any non-synonymous mutation at any amino acid in the coding sequences of these genes
+For example, any non-synonymous mutation of these genes
 
-`rpoB_*?`, `rrs_*?`, `fabG1_*?`
+`rpoB@*?`, `rrs@*?`, `fabG1@*?`
 
 Whilst any non-synonymous mutation in the promoter of these genes is
 
-`rpoB_-*?`, `rrs-*?`, `fabG1_-*?`
+`rpoB@-*?`, `rrs@-*?`, `fabG1@-*?`
 
 Note that the reference amino acid or base cannot, and therefore is not, specified. Likewise, all synonymous mutations in the coding sequences are
 
-`rpoB_*=`, `rrs_*=`, `fabG1_*=`
+`rpoB@*=`, `fabG1@*=`
 
 Lastly, these rules have to be applied in a descending hierarchy which is based on the assumption that more specfic rules should override more general rules. This is a made up example.
 ```
-rpoB_*= S
-rpoB_*?  U
-rpoB_450? R
-rpoB_S450T S
+rpoB@*= S
+rpoB@*?  U
+rpoB@450? R
+rpoB@S450T S
 ```
 The first two rules say that synonymous mutations in the coding region of rpoB have no effect but any non-synonymous mutation has an unknown effect (U). The third second rule overrides this at position 450 so adds "except at position 450 where any non-synonymous mutation is classified R", then the final rule adds a final exception "except if the alt/target amino acid is Threonine, in which case it is classified S.
 
@@ -119,50 +119,50 @@ An important implication of this is that the rules can INTERACT and these needs 
 
 INDELs require a more complex hierarchy, although only the top level is used for the time being. The top level is
 
-`gene_position_indel`
+`gene@position_indel`
 
-e.g. `rpoB_1300_indel`
+e.g. `rpoB@1300_indel`
 
 which means any insertion or deletion of any length at this position. If position is positive it is the nucleotide number within the coding sequence. If negative, it is within the promoter.
 
 This can be overridden with more specific rules, the first of which is
 
-`gene_position_fs`
+`gene@position_fs`
 
-e.g. `rpoB_1300_fs`
+e.g. `rpoB@1300_fs`
 
 which means any frame-shifting mutation at the position. In other words the length of the insertion or deletion is not divisible by three. Then we have a more specific format
 
-`gene_position_type_length`
+`gene@position_type_length`
 
 where the length is specified e.g.
 
-`rpoB_1300_ins_2`
+`rpoB@1300_ins_2`
 
 means any insertion of two bases at position 1300 in rpoB. Logically, the numbering is again nucleotide (not amino acid residue). Finally, and not implemented yet, the specific bases inserted can be specific
 
-`rpoB_1300_ins_ca`
+`rpoB@1300_ins_ca`
 
-Note that the deepest rule for deletions is the layer above i.e. `rpoB_1300_del_2` since we cannot specific which bases were deleted! Hence we end up with this descending hierarchy
+Note that the deepest rule for deletions is the layer above i.e. `rpoB@1300_del_2` since we cannot specific which bases were deleted! Hence we end up with this descending hierarchy
 
 ```
-rpoB_*_indel                        any insertion or deletion in the CDS of rpoB
-rpoB_*_ins, rpoB_*_del              any insertion (or deletion) in the CDS
-rpoB_*_ins_2, rpoB_*_del_2          any insertion of 2 bases (or deletion of 2 bases) in the CDS
-rpoB_*_fs                           any frameshifting insertion or deletion in the CDS (notice that this is rpoB_*_ins_1 + rpoB_*_ins_2 + rpoB_*_ins_4 + rpoB_*_ins_5 +... and the same for deletions)
-rpoB_1300_indel                     any insertion or deletion at nucleotide 1300 in the CDS
-rpoB_1300_ins, rpoB_1300_del        any insertion (or deletion) at nucleotide 1300 in the CDS
-rpoB_1300_ins_2, rpoB_1300_del_2    any insertion of length 2 (or deletion of length 2) in the CDS
-rpoB_1300_ins_ca                    insertion of bases ca at position 1300 in the CDS (does not make sense for deletions)
+rpoB@*_indel                        any insertion or deletion in the CDS of rpoB
+rpoB@*_ins, rpoB_*_del              any insertion (or deletion) in the CDS
+rpoB@*_ins_2, rpoB_*_del_2          any insertion of 2 bases (or deletion of 2 bases) in the CDS
+rpoB@*_fs                           any frameshifting insertion or deletion in the CDS (notice that this is rpoB@*_ins_1 + rpoB@*_ins_2 + rpoB@*_ins_4 + rpoB@*_ins_5 +... and the same for deletions)
+rpoB@1300_indel                     any insertion or deletion at nucleotide 1300 in the CDS
+rpoB@1300_ins, rpoB@1300_del        any insertion (or deletion) at nucleotide 1300 in the CDS
+rpoB@1300_ins_2, rpoB@1300_del_2    any insertion of length 2 (or deletion of length 2) in the CDS
+rpoB@1300_ins_ca                    insertion of bases ca at position 1300 in the CDS (does not make sense for deletions)
 ```
 
 Hence to specify any insertion that doesn't frame shift is susceptible, but any frame shifting insertions (i.e. introduces whole numbers of amino acids) confer resistance, whilst not enough deletions have been observed to classify. In addition insertions at position 1300 are classified as conferring resistance.
 
 ```
-rpoB_*_ins    S
-rpoB_*_del    U
-rpoB_*_fs     R
-rpoB_1300_ins R
+rpoB@*_ins    S
+rpoB@*_del    U
+rpoB@*_fs     R
+rpoB@1300_ins R
 ```
 
 Here the hierarchy ensures that the susceptible insertions (or unknown deletions) that are actually frame shifts can overriden with an R.
@@ -170,11 +170,11 @@ Here the hierarchy ensures that the susceptible insertions (or unknown deletions
 For promoters the picture is a bit more straightforward since there is no concept of a frame shift.
 
 ```
-fabG1_-*_indel                      any insertion or deletion in the promoter of fabG1
-fabG1_-*_ins, fabG1_-*_del          any insertion (or deletion) in the promoter
-fabG1_-15_indel                     any insertion or deletion at nucleotide -15 in the promoter
-fabG1_-15_ins_2, fabG1_-15_del_2    any insertion of length 2 (or deletion of length 2) in the promoter
-fabG1_-15_ins_ca                    insertion of bases ca at position -15 in the promoter
+fabG1@-*_indel                      any insertion or deletion in the promoter of fabG1
+fabG1@-*_ins, fabG1@-*_del          any insertion (or deletion) in the promoter
+fabG1@-15_indel                     any insertion or deletion at nucleotide -15 in the promoter
+fabG1@-15_ins_2, fabG1@-15_del_2    any insertion of length 2 (or deletion of length 2) in the promoter
+fabG1@-15_ins_ca                    insertion of bases ca at position -15 in the promoter
 ```
 
 ### Multi-mutations
