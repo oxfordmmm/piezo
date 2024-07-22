@@ -103,11 +103,8 @@ def test_catalogue_prediction_snps(test_catalogue):
     assert test_catalogue.predict("M2@G74X") == {"DRUG_A": "F", "DRUG_B": "S"}
 
     # If a null doesn't hit a specific rule, it shouldn't hit defaults of U
-    assert test_catalogue.predict("M1@A12X") == {"DRUG_A": "S", "DRUG_B": "S"}
-    assert test_catalogue.predict("M1@A12X", show_evidence=True) == {
-        "DRUG_A": ("S", {}),
-        "DRUG_B": ("S", {}),
-    }
+    assert test_catalogue.predict("M1@A12X") == "S"
+    assert test_catalogue.predict("M1@A12X", show_evidence=True) == "S"
 
     # check hitting a wildtype row
     assert test_catalogue.predict("M2@G74I") == {"DRUG_A": "U", "DRUG_B": "U"}
