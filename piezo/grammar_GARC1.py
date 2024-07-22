@@ -437,6 +437,15 @@ def predict_GARC1(
             final_prediction: Tuple = predictions[sorted(predictions)[-1]]
             result[compound] = final_prediction
 
+    # Null calls need a little nudge to ensure that they are correctly handled if they don't hit any rules
+    if mutation_type == "SNP" and after in ["X", "x"]:
+        all_default_nulls = True
+        for drug in drugs:
+            if result[drug] != ("S", {}):
+                all_default_nulls = False
+        if all_default_nulls:
+            return "S"
+
     if show_evidence or isinstance(result, str):
         return result
     else:
