@@ -227,9 +227,9 @@ Any valid multi-mutation will be checked against epistasis rules.
 GARC also allows for specification of a mutation being a minor population/minor allele. 
 E.g if a VCF has a row detailing coverage `98,2` with a `0/0` call, the call is a reference call, but there is also some evidence of an alt call (2 reads supporting this).
 
-In cases in which there are multiple minor population calls within a single codon (e.g we have minor calls for bases 1 and 2 of a codon), the coverage reported for the amino acid mutation should be the lowest of the two.
+In cases in which there are multiple minor population calls within a single codon (e.g we have minor calls for bases 1 and 2 of a codon), the coverage reported for the amino acid mutation should be the highest of the two.
 
-**NOTE:** Any minor call will hit default rules if no specific rule exists for it.
+**NOTE:** Any minor call will not hit default rules if no specific rule exists for it.
 
 These can be conveyed in one of two ways:
 
@@ -256,7 +256,8 @@ This may look like `rpoB@S450L:2&rpoB@A451V:3`
 This is a definition of the grammar acceptable to use within a catalogue.
 Where `<gene-name>` is any valid gene or locus name (usually matching the regex `[a-zA-Z0-9_]+`)
 ```
-<complete-mutation> ::= <mutation> | <mutation>":"<number> | <mutation>":0."<number> | <complete-mutation>"&"<complete-mutation>
+<complete-mutation> ::= <partial-mutation> | "^"<partial-mutation>
+<partial-mutation> ::= <mutation> | <mutation>":"<number> | <mutation>":0."<number> | <partial-mutation>"&"<partial-mutation>
 <mutation> ::= 
                <gene-name>"@"<nucleotide><position><nucleotide> | 
                <gene-name>"@"<amino-acid><number><amino-acid> |
@@ -272,8 +273,8 @@ Where `<gene-name>` is any valid gene or locus name (usually matching the regex 
                <gene-name>"@"<nucleotide><pos>"?" |
                <gene-name>"@"<amino-acid><number>"?" |
                <gene-name>"@"<positive-position>"=" |
-               <gene-name>"@"del_0."<number> |
-               <gene-name>"@"del_1.0"
+               <gene-name>"@del_0."<number> |
+               <gene-name>"@del_1.0"
 
 <wildcard> ::= "?" | "="
 
@@ -309,8 +310,8 @@ Due to wildcards not being intended for use for prediction (i.e it doesn't make 
                <gene-name>"@"<pos>"_del" |
                <gene-name>"@"<pos>"_indel" |
                <gene-name>"@"<pos>"_fs" |
-               <gene-name>"@"del_0."<number> |
-               <gene-name>"@"del_1.0"
+               <gene-name>"@del_0."<number> |
+               <gene-name>"@del_1.0"
                
 <pos> ::= <number> | "-"<number>
 
