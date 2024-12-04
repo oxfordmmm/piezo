@@ -1,6 +1,6 @@
 #! /usr/bin/env python
-"""All logic required to parse and generate predictions from a catalogue in GARC1
-"""
+"""All logic required to parse and generate predictions from a catalogue in GARC1"""
+
 import re
 import ujson
 
@@ -368,7 +368,7 @@ def predict_GARC1(
         before,
         after,
     ) in parsed_mutations:
-        result = predict(
+        res = predict(
             catalogue,
             gene,
             mutation,
@@ -387,6 +387,23 @@ def predict_GARC1(
             after,
         )
 
+        if not isinstance(res, str):
+            result = res
+
+    # Null calls need a little nudge to ensure that they are correctly handled if they don't hit any rules
+    if mutation_type == "SNP" and after in ["X", "x"]:
+        all_default_nulls = True
+        for drug in drugs:
+            if result[drug] != ("S", {}):
+                all_default_nulls = False
+        if all_default_nulls:
+            return "S"
+
+    if show_evidence or isinstance(result, str):
+        return result
+    else:
+        return {key: result[key][0] for key in result.keys()}
+
     return result
 
 
@@ -399,16 +416,38 @@ def predict(
     result: Dict[str, Tuple],
     show_evidence: bool,
     minor: float | None,
-    position: int,
-    mutation_affects: str,
-    mutation_type: str,
-    indel_type: str,
-    indel_length: int,
-    indel_bases: str,
-    before: str,
-    after: str,
-) -> Dict[str, Tuple] | Dict[str, str] | str:
+    position: int | None,
+    mutation_affects: str | None,
+    mutation_type: str | None,
+    indel_type: str | None,
+    indel_length: float | None,
+    indel_bases: str | None,
+    before: str | None,
+    after: str | None,
+) -> Dict[str, Tuple] | str:
+    """Given a parsed mutation, predict effects for it.
 
+    Args:
+        catalogue (Catalogue): Catalogue to predict from
+        gene (str): Gene name
+        mutation (str): Mutation in GARC
+        gene_mutation (str): Joined gene and mutation (for error messages)
+        drugs (List[str]): List of drugs to check for
+        result (Dict[str, Tuple]): Cumulative results of predictions
+        show_evidence (bool): Whether to show predictions
+        minor (float | None): Minor population supporting this mutation
+        position (int): Position this mutation affects
+        mutation_affects (str): Where this mutation affects (CDS or PROM)
+        mutation_type (str): Type of mutations (INDEL or SNP)
+        indel_type (str): Type of indel (INS or DEL)
+        indel_length (int): Length of indel (if any)
+        indel_bases (str): Bases inserted or deleted (if any)
+        before (str): Before SNP (if any)
+        after (str): After SNP (if any)
+
+    Returns:
+        Dict[str, Tuple] | Dict[str, str]: Results of predictions
+    """
     # create the vectors of Booleans that will apply
     position_vector = catalogue.rules.POSITION.isin(
         [position, str(position), "*", "-*"]
@@ -479,19 +518,7 @@ def predict(
             final_prediction: Tuple = predictions[sorted(predictions)[-1]]
             result[compound] = final_prediction
 
-    # Null calls need a little nudge to ensure that they are correctly handled if they don't hit any rules
-    if mutation_type == "SNP" and after in ["X", "x"]:
-        all_default_nulls = True
-        for drug in drugs:
-            if result[drug] != ("S", {}):
-                all_default_nulls = False
-        if all_default_nulls:
-            return "S"
-
-    if show_evidence or isinstance(result, str):
-        return result
-    else:
-        return {key: result[key][0] for key in result.keys()}
+    return result
 
 
 def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] | str:
@@ -1168,7 +1195,7 @@ def parse_mutation(
     Tuple[
         int | None,
         str | None,
-        str | None,
+        str,
         str | None,
         float | None,
         str | None,
@@ -1294,7 +1321,12 @@ def parse_mutation(
             after,
         )
     ]
-    if mutation_affects == "PROM" and indel_type == "del" and indel_length is not None:
+    if (
+        mutation_affects == "PROM"
+        and indel_type == "del"
+        and indel_length is not None
+        and position is not None
+    ):
         # Potential case of deletion crossing into coding region
         if position + indel_length > 0:
             new_bases = (
