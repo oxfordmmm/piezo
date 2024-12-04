@@ -349,7 +349,16 @@ def predict_GARC1(
         minor = None
 
     # parse the mutation to work out what type of mutation it is, where it acts etc
-    (
+    parsed_mutations = parse_mutation(mutation)
+
+    # if the gene isn't in the catalogue, then assume it has no effect
+    if gene not in catalogue.genes:
+        return "S"
+
+    # find out the drugs to which changes in this gene can confer resistance
+    drugs = catalogue.gene_lookup[gene]
+
+    for (
         position,
         mutation_affects,
         mutation_type,
@@ -358,14 +367,47 @@ def predict_GARC1(
         indel_bases,
         before,
         after,
-    ) = parse_mutation(mutation)
+    ) in parsed_mutations:
+        result = predict(
+            catalogue,
+            gene,
+            mutation,
+            gene_mutation,
+            drugs,
+            result,
+            show_evidence,
+            minor,
+            position,
+            mutation_affects,
+            mutation_type,
+            indel_type,
+            indel_length,
+            indel_bases,
+            before,
+            after,
+        )
 
-    # if the gene isn't in the catalogue, then assume it has no effect
-    if gene not in catalogue.genes:
-        return "S"
+    return result
 
-    # find out the drugs to which changes in this gene can confer resistance
-    drugs = catalogue.gene_lookup[gene]
+
+def predict(
+    catalogue: Catalogue,
+    gene: str,
+    mutation: str,
+    gene_mutation: str,
+    drugs: List[str],
+    result: Dict[str, Tuple],
+    show_evidence: bool,
+    minor: float | None,
+    position: int,
+    mutation_affects: str,
+    mutation_type: str,
+    indel_type: str,
+    indel_length: int,
+    indel_bases: str,
+    before: str,
+    after: str,
+) -> Dict[str, Tuple] | Dict[str, str] | str:
 
     # create the vectors of Booleans that will apply
     position_vector = catalogue.rules.POSITION.isin(
@@ -1122,15 +1164,17 @@ def process_indel_variants(
 
 def parse_mutation(
     mutation: str,
-) -> Tuple[
-    int | None,
-    str | None,
-    str | None,
-    str | None,
-    float | None,
-    str | None,
-    str | None,
-    str | None,
+) -> list[
+    Tuple[
+        int | None,
+        str | None,
+        str | None,
+        str | None,
+        float | None,
+        str | None,
+        str | None,
+        str | None,
+    ]
 ]:
     """
     Take a GENE_MUTATION, and determine what type it is, what it affects etc
@@ -1238,16 +1282,37 @@ def parse_mutation(
     if mutation_type == "SNP":
         sanity_check_snp(before, after)
 
-    return (
-        position,
-        mutation_affects,
-        mutation_type,
-        indel_type,
-        indel_length,
-        indel_bases,
-        before,
-        after,
-    )
+    parsed = [
+        (
+            position,
+            mutation_affects,
+            mutation_type,
+            indel_type,
+            indel_length,
+            indel_bases,
+            before,
+            after,
+        )
+    ]
+    if mutation_affects == "PROM" and indel_type == "del" and indel_length is not None:
+        # Potential case of deletion crossing into coding region
+        if position + indel_length > 0:
+            new_bases = (
+                indel_bases[abs(position) :] if indel_bases is not None else None
+            )
+            parsed.append(
+                (
+                    1,
+                    "CDS",
+                    "INDEL",
+                    "del",
+                    position + indel_length,
+                    new_bases,
+                    before,
+                    after,
+                )
+            )
+    return parsed
 
 
 def infer_mutation_affects(position: int) -> str:
