@@ -44,3 +44,4 @@ NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M2@-100_indel,R,{},"{""row"": 41}",{}
 NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M2@del_0.8:0.05,R,{},"{""row"": 42}",{}
 NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_B,M2@del_0.0,U,{},"{""row"": 43}",{}
 NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M2@del_0.0,U,{},"{""row"": 44}",{}
+NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M2@*_del_5,R,{},"{""row"": 45}",{}

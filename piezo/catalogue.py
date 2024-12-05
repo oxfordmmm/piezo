@@ -1,6 +1,5 @@
 #! /usr/bin/env python
-"""Instanciate the catalogue
-"""
+"""Instanciate the catalogue"""
 
 import os
 import warnings

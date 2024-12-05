@@ -537,6 +537,38 @@ def test_misc():
     assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.5:0.03") == {"DRUG_A": "S", "DRUG_B": "S"}
 
+    # Ensure that if a deletion crosses the boundary into CDS, it should predict
+    # the coding part too. i.e if a deletion starts in the promoter, but causes a frameshift
+    # in the coding region, it should predict the frameshift
+
+    # This catalogue has a frameshift rule for M2, so this should predict 'R' for DRUG_B
+    # in cases the deletion crosses the boundary
+
+    # Just promoter
+    assert test_catalogue.predict("M2@-12_del_2") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@-12_del_7") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@-5_del_acgt") == {"DRUG_A": "U", "DRUG_B": "U"}
+
+    # Deleting all of promoter (shouldn't hit frameshift)
+    assert test_catalogue.predict("M2@-12_del_12") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@-1_del_a") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@-10_del_" + "a" * 10) == {
+        "DRUG_A": "U",
+        "DRUG_B": "U",
+    }
+
+    # Deletion passing into CDS
+    assert test_catalogue.predict("M2@-12_del_13") == {"DRUG_A": "U", "DRUG_B": "R"}
+    assert test_catalogue.predict("M2@-12_del_14") == {"DRUG_A": "U", "DRUG_B": "R"}
+    assert test_catalogue.predict("M2@-5_del_15") == {"DRUG_A": "U", "DRUG_B": "R"}
+    assert test_catalogue.predict("M2@-5_del_acgtac") == {"DRUG_A": "U", "DRUG_B": "R"}
+    # Not a frameshift, so should remain 'U'
+    assert test_catalogue.predict("M2@-12_del_15") == {"DRUG_A": "U", "DRUG_B": "U"}
+    assert test_catalogue.predict("M2@-3_del_12") == {"DRUG_A": "U", "DRUG_B": "U"}
+
+    # Specific case of a deletion that hits a specific rule for DRUG_A as well as a frameshift
+    assert test_catalogue.predict("M2@-5_del_10") == {"DRUG_A": "R", "DRUG_B": "R"}
+
     # Wildcard ins shouldn't give prediction on del
     # (yes this sounds ridiculous but was present for years)
     # This catalogue has a dummy drug ("M3") which doesn't have default rules,
