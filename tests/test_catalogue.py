@@ -582,3 +582,7 @@ def test_misc():
 
     # Double checking that a minor allele doesn't hit a general rule anymore
     assert test_catalogue.predict("M2@37_del_c:0.2") == {"DRUG_A": "S", "DRUG_B": "S"}
+
+    # Checking that a null call can't hit a wildcard rule
+    # This catalogue has M3@S450?, this shouldn't hit that and so should get a default "S"
+    assert test_catalogue.predict("M3@S450X") == "S"

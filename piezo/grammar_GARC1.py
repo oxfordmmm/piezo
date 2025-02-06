@@ -1027,13 +1027,14 @@ def process_snp_variants(
 
         # PRIORITY=8: any nonsynoymous mutation at this specific position in the CDS or
         #   PROM  (e.g. rpoB@S450? or rpoB@c-15?)
-        row = rules.loc[
-            rules_mutation_type_vector
-            & rules_position_vector
-            & (rules.MUTATION.str[-1] == "?")
-        ]
-        # nonsyn SNP at specified position in the CDS
-        row_prediction(row, predictions, 8, minor)
+        if mutation[-1] not in ["X", "x"]:
+            row = rules.loc[
+                rules_mutation_type_vector
+                & rules_position_vector
+                & (rules.MUTATION.str[-1] == "?")
+            ]
+            # nonsyn SNP at specified position in the CDS
+            row_prediction(row, predictions, 8, minor)
 
     # PRIORITY=9: an exact match
     row = rules.loc[(rules_mutation_type_vector) & (rules.MUTATION == mutation)]
