@@ -502,11 +502,11 @@ def predict(
             # all mutations should hit at least one of the default entries, so if this
             #   doesn't happen, something is wrong UNLESS the mutation given is a minor allele
             if ":" in gene_mutation:
-                result[compound] = ("S", {})
+                result[compound] = ("S", {"reporting_rule": "minor allele, no matching rule found"})
             elif mutation_type == "SNP" and after in ["X", "x"]:
                 # Null call with no specific row matches, so return S
                 # as it doesn't make sense to match defaults for a null call
-                result[compound] = ("S", {})
+                result[compound] = ("S", {"reporting_rule": "null call, no matching rule found"})
             else:
                 raise ValueError(
                     "No entry found in the catalogue for "
