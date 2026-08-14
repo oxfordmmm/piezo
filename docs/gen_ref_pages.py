@@ -20,7 +20,7 @@ for path in sorted(Path("piezo").rglob("*.py")):
     elif parts[-1] == "__main__":
         continue
 
-    if parts == tuple():
+    if parts == ():
         parts = ("piezo",)
     nav[parts] = doc_path.as_posix()
 

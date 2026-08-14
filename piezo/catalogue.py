@@ -1,4 +1,3 @@
-#! /usr/bin/env python
 """Instanciate the catalogue"""
 
 import os
@@ -7,9 +6,7 @@ import warnings
 import pandas
 import ujson
 
-from typing import Dict, Tuple
-
-from piezo.grammar_GARC1 import predict_GARC1, process_catalogue_GARC1, Catalogue
+from piezo.grammar_GARC1 import Catalogue, predict_GARC1, process_catalogue_GARC1
 
 
 class ResistanceCatalogue:
@@ -27,7 +24,7 @@ class ResistanceCatalogue:
 
     def predict(
         self, mutation: str, verbose: bool = False, show_evidence=False
-    ) -> Dict[str, Tuple] | Dict[str, str] | str:
+    ) -> dict[str, tuple] | dict[str, str] | str:
         """Make a prediction of a mutation's effects based on the catalogue
 
         Args:
@@ -123,7 +120,7 @@ def load_catalogue(catalogue_file: str, prediction_subset_only: bool) -> Catalog
     values = rules.PREDICTION_VALUES.unique()[0]
     if values in ["RS", "RUS", "RFUS"]:
         values = [i for i in rules.PREDICTION_VALUES.unique()[0]]
-        assert sorted(values) == sorted(list(rules.PREDICTION.unique())), (
+        assert sorted(values) == sorted(rules.PREDICTION.unique()), (
             "PREDICTION column contains entries not in "
             + rules.PREDICTION_VALUES.unique()[0]
         )
@@ -150,7 +147,7 @@ def load_catalogue(catalogue_file: str, prediction_subset_only: bool) -> Catalog
         raise ValueError("only the GENE_MUTATION grammar is supported at present!")
 
     elif grammar == "GARC1":
-        (rules, genes, drug_lookup, gene_lookup) = process_catalogue_GARC1(
+        rules, genes, drug_lookup, gene_lookup = process_catalogue_GARC1(
             rules, drugs, catalogue_genes_only=prediction_subset_only
         )
 
@@ -174,7 +171,7 @@ def predict(
     mutation: str,
     verbose: bool = False,
     show_evidence: bool = False,
-) -> Dict[str, Tuple] | Dict[str, str] | str:
+) -> dict[str, tuple] | dict[str, str] | str:
     """
     Predict the effect of the given mutation on one or more antimicrobials.
 

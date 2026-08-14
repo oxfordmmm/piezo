@@ -1,4 +1,5 @@
 from collections import defaultdict
+
 import pytest
 
 import piezo
@@ -56,14 +57,14 @@ def test_catalogue__init__(test_catalogue, genes, gene_lookup):
 
     # Convert the gene_lookup to drug_lookup
     lookup = defaultdict(list)
-    for gene in gene_lookup.keys():
+    for gene in gene_lookup:
         for drug in gene_lookup[gene]:
             lookup[drug].append(gene)
-    lookup = {drug: sorted(lookup[drug]) for drug in lookup.keys()}
+    lookup = {drug: sorted(lookup[drug]) for drug in lookup}
 
     actual_lookup = {
         drug: sorted(test_catalogue.catalogue.drug_lookup[drug])
-        for drug in test_catalogue.catalogue.drug_lookup.keys()
+        for drug in test_catalogue.catalogue.drug_lookup
     }
     assert actual_lookup == lookup
 
@@ -103,8 +104,11 @@ def test_catalogue_prediction_snps(test_catalogue):
     assert test_catalogue.predict("M2@G74X") == {"DRUG_A": "F", "DRUG_B": "S"}
 
     # If a null doesn't hit a specific rule, it shouldn't hit defaults of U
-    assert test_catalogue.predict("M1@A12X") == "S"
-    assert test_catalogue.predict("M1@A12X", show_evidence=True) == "S"
+    assert test_catalogue.predict("M1@A12X") == {"DRUG_A": "S", "DRUG_B": "S"}
+    assert test_catalogue.predict("M1@A12X", show_evidence=True) == {
+        "DRUG_A": ("S", {"reporting_rule": "null call, no matching rule found"}),
+        "DRUG_B": ("S", {"reporting_rule": "null call, no matching rule found"}),
+    }
 
     # check hitting a wildtype row
     assert test_catalogue.predict("M2@G74I") == {"DRUG_A": "U", "DRUG_B": "U"}
@@ -134,27 +138,27 @@ def test_catalogue_prediction_snps(test_catalogue):
     assert test_catalogue.predict("M2@del_0.7") == {"DRUG_A": "U", "DRUG_B": "U"}
     assert test_catalogue.predict("M2@del_0.5") == {"DRUG_A": "U", "DRUG_B": "U"}
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@del_0.5s") == {"DRUG_A": "U", "DRUG_B": "U"}
 
     # bad prediction
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@L73P") == {"DRUG_A": "R", "DRUG_B": "R"}
 
     # incorrect amino acid in the alt position
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@L73B")
 
     # badly formed gene_mutation
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M3@K73P_3")
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@K73t")
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@a-10a")
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@a-10A")
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@T-10a")
 
 
@@ -333,19 +337,19 @@ def test_catalogue_prediction_indels(test_catalogue):
     assert test_catalogue.predict("M2@300_ins_acctt") == {"DRUG_A": "U", "DRUG_B": "R"}
 
     # badly formed INDELs
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@300_indel_5") == {
             "DRUG_A": "U",
             "DRUG_B": "U",
         }
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@300_indel_-5") == {
             "DRUG_A": "U",
             "DRUG_B": "U",
         }
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@300_insdel") == {"DRUG_A": "U", "DRUG_B": "U"}
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         assert test_catalogue.predict("M2@300_del_ACT") == {
             "DRUG_A": "U",
             "DRUG_B": "U",
@@ -416,9 +420,9 @@ def test_minor_population(test_catalogue):
     assert test_catalogue.predict("M2@F75V:1") == {"DRUG_A": "S", "DRUG_B": "S"}
 
     # Should fail
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         test_catalogue.predict("M2@F75V:0")
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         test_catalogue.predict("M2@F75V:-1")
 
     # Multi
@@ -451,9 +455,9 @@ def test_minor_population(test_catalogue):
     assert test_catalogue2.predict("M2@F75V:0.02") == {"DRUG_A": "S", "DRUG_B": "S"}
 
     # Should fail
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         test_catalogue2.predict("M2@F75V:0.0")
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         test_catalogue2.predict("M2@F75V:-0.1")
 
     assert test_catalogue2.predict("M2@G74!:0.04&M2@G74X:0.02") == {
@@ -585,4 +589,4 @@ def test_misc():
 
     # Checking that a null call can't hit a wildcard rule
     # This catalogue has M3@S450?, this shouldn't hit that and so should get a default "S"
-    assert test_catalogue.predict("M3@S450X") == "S"
+    assert test_catalogue.predict("M3@S450X") == {"DRUG_B": "S"}

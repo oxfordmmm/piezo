@@ -1,12 +1,10 @@
-#! /usr/bin/env python
 """All logic required to parse and generate predictions from a catalogue in GARC1"""
 
 import re
-import ujson
+from typing import NamedTuple
 
 import pandas
-
-from typing import Tuple, Dict, NamedTuple, List
+import ujson
 
 
 # define the named tuple that will specify a resistance catalogue
@@ -16,10 +14,10 @@ class Catalogue(NamedTuple):
     version: str
     grammar: str
     values: str
-    drugs: List[str]
-    genes: List[str]
-    drug_lookup: Dict[str, List[str]]
-    gene_lookup: Dict[str, List[str]]
+    drugs: list[str]
+    genes: list[str]
+    drug_lookup: dict[str, list[str]]
+    gene_lookup: dict[str, list[str]]
     number_rows: int
     rules: pandas.DataFrame
 
@@ -82,7 +80,7 @@ def validate_multi(mutation: str) -> None:
         except ValueError as e:
             if "Badly formed mutation: " in str(e):
                 # If we're catching the exception we just threw, re-throw it
-                raise e
+                raise
             continue
 
 
@@ -114,7 +112,7 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
             mutation_type = "MULTI"
 
         # Ensure mutations are in a reproducable order
-        mutation = "&".join(sorted(list(row["MUTATION"].split("&"))))
+        mutation = "&".join(sorted(row["MUTATION"].split("&")))
 
         position = None
         mutation_affects = None
@@ -208,8 +206,8 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
 
 
 def process_catalogue_GARC1(
-    rules: pandas.DataFrame, drugs: List[str], catalogue_genes_only: bool
-) -> Tuple[pandas.DataFrame, List[str], Dict[str, List[str]], Dict[str, List[str]]]:
+    rules: pandas.DataFrame, drugs: list[str], catalogue_genes_only: bool
+) -> tuple[pandas.DataFrame, list[str], dict[str, list[str]], dict[str, list[str]]]:
     """
     For the GARC1 grammar, add some additional columns to the rules dataframe that
         can be inferred from the mutation.
@@ -288,7 +286,7 @@ def process_catalogue_GARC1(
     gene_lookup = {}
     for gene_name in genes:
         df = rules.loc[rules.GENE == gene_name]
-        gene_lookup[gene_name] = sorted(list(df.DRUG.unique()))
+        gene_lookup[gene_name] = sorted(df.DRUG.unique())
 
     # create a dictionary where the drugs are keys and the entries tell which genes
     #   are affected
@@ -302,7 +300,7 @@ def process_catalogue_GARC1(
 
 def predict_GARC1(
     catalogue: Catalogue, gene_mutation: str, show_evidence: bool = False
-) -> Dict[str, Tuple] | Dict[str, str] | str:
+) -> dict[str, tuple] | dict[str, str] | str:
     """
     For the GARC1 grammar, predict the effect of the supplied gene_mutation.
 
@@ -322,15 +320,15 @@ def predict_GARC1(
     # create the result dictionary e.g. {"RIF":'R', "RFB":'R'}
     # most of the time the predictions will be identical, but this allows them to
     #   diverge in future
-    result: Dict[str, Tuple] = {}
+    result: dict[str, tuple] = {}
 
     if "&" in gene_mutation:
         # Multi-gene so treat differently
-        result_multi: Dict[str, Tuple] | str = predict_multi(catalogue, gene_mutation)
+        result_multi: dict[str, tuple] | str = predict_multi(catalogue, gene_mutation)
         if show_evidence or isinstance(result_multi, str):
             return result_multi
         else:
-            return {key: result_multi[key][0] for key in result_multi.keys()}
+            return {key: result_multi[key][0] for key in result_multi}
 
     components = gene_mutation.split("@")
 
@@ -402,7 +400,7 @@ def predict_GARC1(
     if show_evidence or isinstance(result, str):
         return result
     else:
-        return {key: result[key][0] for key in result.keys()}
+        return {key: result[key][0] for key in result}
 
     return result
 
@@ -412,8 +410,8 @@ def predict(
     gene: str,
     mutation: str,
     gene_mutation: str,
-    drugs: List[str],
-    result: Dict[str, Tuple],
+    drugs: list[str],
+    result: dict[str, tuple],
     show_evidence: bool,
     minor: float | None,
     position: int | None,
@@ -424,7 +422,7 @@ def predict(
     indel_bases: str | None,
     before: str | None,
     after: str | None,
-) -> Dict[str, Tuple] | str:
+) -> dict[str, tuple] | str:
     """Given a parsed mutation, predict effects for it.
 
     Args:
@@ -466,7 +464,7 @@ def predict(
 
         # prepare a dictionary to store hits with the priority as the key:
         #   e.g. {10:'R',5:'U'}
-        predictions: Dict[int, Tuple[str, Dict]] = {}
+        predictions: dict[int, tuple[str, dict]] = {}
 
         if not subset_rules.empty:
             subset_position_vector = subset_rules.POSITION == str(position)
@@ -502,11 +500,17 @@ def predict(
             # all mutations should hit at least one of the default entries, so if this
             #   doesn't happen, something is wrong UNLESS the mutation given is a minor allele
             if ":" in gene_mutation:
-                result[compound] = ("S", {"reporting_rule": "minor allele, no matching rule found"})
+                result[compound] = (
+                    "S",
+                    {"reporting_rule": "minor allele, no matching rule found"},
+                )
             elif mutation_type == "SNP" and after in ["X", "x"]:
                 # Null call with no specific row matches, so return S
                 # as it doesn't make sense to match defaults for a null call
-                result[compound] = ("S", {"reporting_rule": "null call, no matching rule found"})
+                result[compound] = (
+                    "S",
+                    {"reporting_rule": "null call, no matching rule found"},
+                )
             else:
                 raise ValueError(
                     "No entry found in the catalogue for "
@@ -515,13 +519,13 @@ def predict(
                     + compound
                 )
         else:
-            final_prediction: Tuple = predictions[sorted(predictions)[-1]]
+            final_prediction: tuple = predictions[max(predictions)]
             result[compound] = final_prediction
 
     return result
 
 
-def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] | str:
+def predict_multi(catalogue: Catalogue, gene_mutation: str) -> dict[str, tuple] | str:
     """Get the predictions for a given multi-mutation.
     Mutli-mutations are (currently) a lot stricter than others, and do not support
         wildcards or subsets of the mutations
@@ -534,7 +538,7 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
             predictions in catalogue
     """
     # Ensure that the mutations are in a reproducable order
-    sorted_mutation = "&".join(sorted(list(gene_mutation.split("&"))))
+    sorted_mutation = "&".join(sorted(gene_mutation.split("&")))
 
     # Check for minor populations (and remove, we'll check these separately)
     minors = [
@@ -565,16 +569,20 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
                 if minor is None and cat == "":
                     # Neither are minors so add
                     epi_drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
-                elif cat != "" and minor is not None and minor < 1 and float(cat) < 1:
-                    # FRS
-                    if minor >= float(cat):
-                        # Match
-                        epi_drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
-                elif cat != "" and minor is not None and minor >= 1 and float(cat) >= 1:
-                    # COV
-                    if minor >= float(cat):
-                        # Match
-                        epi_drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
+                elif (
+                    cat != ""
+                    and minor is not None
+                    and minor < 1
+                    and float(cat) < 1
+                    and minor >= float(cat)
+                    or cat != ""
+                    and minor is not None
+                    and minor >= 1
+                    and float(cat) >= 1
+                    and minor >= float(cat)
+                ):
+                    # Match
+                    epi_drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
 
     # Get the multi rules
     multi_rules = catalogue.rules[catalogue.rules["MUTATION_TYPE"] == "MULTI"]
@@ -585,36 +593,34 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
         if epi_drugs[drug][1] != "":
             # Epistasis rule already covers this, so skip it
             continue
-        if match_multi(rule, sorted_mutation, catalogue):
-            # We have a match! Prioritise predictions based on values
-            if values.index(rule["PREDICTION"]) < values.index(drugs[drug][0]):
-                # The prediction is closer to the start of the values list, so should
-                #   take priority
-                # Check for minor populations first though
-                for cat, minor in zip(rule["MINOR"].split(","), minors):
-                    if minor is None and cat == "":
-                        # Neither are minors so add
-                        drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
-                    elif (
-                        cat != "" and minor is not None and minor < 1 and float(cat) < 1
-                    ):
-                        # FRS
-                        if minor >= float(cat):
-                            # Match
-                            drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
-                    elif (
-                        cat != ""
-                        and minor is not None
-                        and minor >= 1
-                        and float(cat) >= 1
-                    ):
-                        # COV
-                        if minor >= float(cat):
-                            # Match
-                            drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
+        if match_multi(rule, sorted_mutation, catalogue) and values.index(
+            rule["PREDICTION"]
+        ) < values.index(drugs[drug][0]):
+            # The prediction is closer to the start of the values list, so should
+            #   take priority
+            # Check for minor populations first though
+            for cat, minor in zip(rule["MINOR"].split(","), minors):
+                if minor is None and cat == "":
+                    # Neither are minors so add
+                    drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
+                elif (
+                    cat != ""
+                    and minor is not None
+                    and minor < 1
+                    and float(cat) < 1
+                    and minor >= float(cat)
+                ) or (
+                    cat != ""
+                    and minor is not None
+                    and minor >= 1
+                    and float(cat) >= 1
+                    and minor >= float(cat)
+                ):
+                    # Match
+                    drugs[drug] = (rule["PREDICTION"], rule["EVIDENCE"])
 
     # Check to ensure we have at least 1 prediction
-    if len([key for key in epi_drugs.keys() if epi_drugs[key][1] != ""]) > 0:
+    if len([key for key in epi_drugs if epi_drugs[key][1] != ""]) > 0:
         # Epistasis hit(s) so join with the multis
         to_return = drugs
         for drug in epi_drugs:
@@ -627,9 +633,9 @@ def predict_multi(catalogue: Catalogue, gene_mutation: str) -> Dict[str, Tuple] 
         # For whatever reason, this appeases mypy
         return {key: value for key, value in to_return.items()}
 
-    if len([key for key in drugs.keys() if drugs[key][0] != "S"]) > 0:
+    if len([key for key in drugs if drugs[key][0] != "S"]) > 0:
         # At least one multi hit
-        return {drug: drugs[drug] for drug in drugs.keys() if drugs[drug][0] != "S"}
+        return {drug: drugs[drug] for drug in drugs if drugs[drug][0] != "S"}
 
     # Nothing predicted, so try each individual mutation
     predictions = {}
@@ -737,17 +743,12 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
             # No rules for this drugs etc
             return False
 
-    if len(r) == 0:
-        # Must have matched every rule in the multi
-        return True
-
-    # Not matched everything, so not a match
-    return False
+    return len(r) == 0
 
 
 def merge_predictions(
-    predictions: Dict[str, Dict[str, Tuple] | Dict[str, str]], catalogue: Catalogue
-) -> Dict[str, Tuple] | str:
+    predictions: dict[str, dict[str, tuple] | dict[str, str]], catalogue: Catalogue
+) -> dict[str, tuple] | str:
     """When multi-mutations do not have a hit, they are decomposed and individuals are
         tried instead
     This merges these predictions based on the prioritisation defined for this catalogue
@@ -764,15 +765,15 @@ def merge_predictions(
     # Pull out all of the drugs which have predictions
     drugs = set()
     for pred in predictions:
-        for drug in predictions[pred].keys():
+        for drug in predictions[pred]:
             drugs.add(drug)
 
     # Default to 'S' for now
-    merged: Dict[str, Tuple] = {drug: ("S", dict()) for drug in drugs}
+    merged: dict[str, tuple] = {drug: ("S", {}) for drug in drugs}
 
     # Look for all predictions for each drug, and report the most significant
     for drug in drugs:
-        for mutation in predictions.keys():
+        for mutation in predictions:
             # Get the prediction for this drug (if exists)
             this_pred = predictions[mutation][drug]
 
@@ -786,8 +787,8 @@ def merge_predictions(
                 merged[drug] = (pred, evidence)
 
     # If we have >=1 non-'S' prediction, return the dict
-    if len([key for key in merged.keys() if merged[key][0] != "S"]) > 0:
-        return {drug: merged[drug] for drug in merged.keys() if merged[drug][0] != "S"}
+    if len([key for key in merged if merged[key][0] != "S"]) > 0:
+        return {drug: merged[drug] for drug in merged if merged[drug][0] != "S"}
 
     # Else give the default 'S'
     return "S"
@@ -795,7 +796,7 @@ def merge_predictions(
 
 def row_prediction(
     rows: pandas.DataFrame,
-    predictions: Dict[int, Tuple[str, Dict]],
+    predictions: dict[int, tuple[str, dict]],
     priority: int,
     minor: float | None,
 ) -> None:
@@ -810,7 +811,7 @@ def row_prediction(
             minor population
     """
     pred = None
-    evidence = dict()
+    evidence = {}
     values = ["R", "U", "F", "S", None]
     for _, row in rows.iterrows():
         if not row.empty:
@@ -853,7 +854,7 @@ def row_prediction(
 
 
 def large_del(
-    predictions: Dict[int, Tuple[str, Dict]],
+    predictions: dict[int, tuple[str, dict]],
     rules: pandas.DataFrame,
     size: float,
     minor: float | None,
@@ -874,7 +875,7 @@ def large_del(
         del_match = deletion.fullmatch(rule["MUTATION"])
         if del_match is not None:
             percentage = float(del_match.groups()[0])
-            if size >= percentage and percentage > current:
+            if size >= percentage > current:
                 # Match!
                 if minor is None and rule["MINOR"] == "":
                     # Neither are minor populations so act normally
@@ -912,7 +913,7 @@ def large_del(
 
 def process_snp_variants(
     mutation_affects: str | None,
-    predictions: Dict[int, Tuple[str, Dict]],
+    predictions: dict[int, tuple[str, dict]],
     before: str | None,
     after: str | None,
     mutation: str,
@@ -1004,11 +1005,10 @@ def process_snp_variants(
 
         # PRIORITY=4: specific mutation at any position in the CDS: only Stop codons
         #   make sense for now (e.g. rpoB@*!)
-        if mutation[-1] in ["!"]:
-            if mutation_affects == "CDS":
-                row = rules.loc[rules_mutation_type_vector & (rules.MUTATION == "*!")]
-                # stop codon at any position in the CDS
-                row_prediction(row, predictions, 4, minor)
+        if mutation[-1] in ["!"] and mutation_affects == "CDS":
+            row = rules.loc[rules_mutation_type_vector & (rules.MUTATION == "*!")]
+            # stop codon at any position in the CDS
+            row_prediction(row, predictions, 4, minor)
 
         # PRIORITY=5: no change at specific position
         # PRIORITY=6: synonymous mutations at specific location (usually picked up by
@@ -1044,7 +1044,7 @@ def process_snp_variants(
 
 def process_indel_variants(
     mutation_affects: str | None,
-    predictions: Dict[int, Tuple[str, Dict]],
+    predictions: dict[int, tuple[str, dict]],
     rules: pandas.DataFrame,
     rules_mutation_type_vector: pandas.Series,
     rules_position_vector: pandas.Series,
@@ -1193,7 +1193,7 @@ def process_indel_variants(
 def parse_mutation(
     mutation: str,
 ) -> list[
-    Tuple[
+    tuple[
         int | None,
         str | None,
         str,
@@ -1327,24 +1327,22 @@ def parse_mutation(
         and indel_type == "del"
         and indel_length is not None
         and position is not None
+        and position + indel_length > 0
     ):
         # Potential case of deletion crossing into coding region
-        if position + indel_length > 0:
-            new_bases = (
-                indel_bases[abs(position) :] if indel_bases is not None else None
+        new_bases = indel_bases[abs(position) :] if indel_bases is not None else None
+        parsed.append(
+            (
+                1,
+                "CDS",
+                "INDEL",
+                "del",
+                position + indel_length,
+                new_bases,
+                before,
+                after,
             )
-            parsed.append(
-                (
-                    1,
-                    "CDS",
-                    "INDEL",
-                    "del",
-                    position + indel_length,
-                    new_bases,
-                    before,
-                    after,
-                )
-            )
+        )
     return parsed
 
 
