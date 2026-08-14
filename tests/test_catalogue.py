@@ -139,27 +139,27 @@ def test_catalogue_prediction_snps(test_catalogue):
     assert test_catalogue.predict("M2@del_0.5") == {"DRUG_A": "U", "DRUG_B": "U"}
 
     with pytest.raises(ValueError):
-        assert test_catalogue.predict("M2@del_0.5s") == {"DRUG_A": "U", "DRUG_B": "U"}
+        test_catalogue.predict("M2@del_0.5s")
 
     # bad prediction
     with pytest.raises(ValueError):
-        assert test_catalogue.predict("M2@L73P") == {"DRUG_A": "R", "DRUG_B": "R"}
+        test_catalogue.predict("M2@L73p")
 
     # incorrect amino acid in the alt position
     with pytest.raises(ValueError):
-        assert test_catalogue.predict("M2@L73B")
+        test_catalogue.predict("M2@L73B")
 
     # badly formed gene_mutation
     with pytest.raises(ValueError):
-        assert test_catalogue.predict("M3@K73P_3")
+        test_catalogue.predict("M3@K73P_3")
     with pytest.raises(ValueError):
-        assert test_catalogue.predict("M2@K73t")
+        test_catalogue.predict("M2@K73t")
     with pytest.raises(ValueError):
-        assert test_catalogue.predict("M2@a-10a")
+        test_catalogue.predict("M2@a-10a")
     with pytest.raises(ValueError):
-        assert test_catalogue.predict("M2@a-10A")
+        test_catalogue.predict("M2@a-10A")
     with pytest.raises(ValueError):
-        assert test_catalogue.predict("M2@T-10a")
+        test_catalogue.predict("M2@T-10a")
 
 
 @pytest.mark.parametrize(
@@ -487,7 +487,7 @@ def test_misc():
         test_catalogue.predict("N@K45L")
 
     # Malformed minor mutation should cause issues
-    with pytest.raises(AssertionError):
+    with pytest.raises(ValueError):
         test_catalogue.predict("M2@F75V:nope")
 
     # Trying with catalogues with issues, each hitting a different ValueError

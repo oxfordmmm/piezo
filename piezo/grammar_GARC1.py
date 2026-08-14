@@ -340,9 +340,10 @@ def predict_GARC1(
         try:
             minor = float(mutation.split(":")[-1])
         except ValueError:
-            assert False, "Malformed mutation! " + mutation
+            raise ValueError("Malformed mutation! " + mutation)
         mutation = mutation.split(":")[0]
-        assert minor > 0, "Minor population given with no evidence! " + mutation
+        if minor <= 0:
+            raise ValueError("Minor population given with no evidence! " + mutation)
     else:
         minor = None
 
@@ -815,9 +816,8 @@ def row_prediction(
     values = ["R", "U", "F", "S", None]
     for _, row in rows.iterrows():
         if not row.empty:
-            assert int(priority) in range(
-                1, 11
-            ), "priority must be an integer in range 1,2..10"
+            if int(priority) not in range(1, 11):
+                raise ValueError("priority must be an integer in range 1,2..10")
             if values.index(row["PREDICTION"]) < values.index(pred):
                 # This row's prediction is more important than the current, so check
                 #   for minors and prioritise
@@ -1270,41 +1270,46 @@ def parse_mutation(
             try:
                 position = int(cols[0])
             except ValueError:
-                assert False, "Invalid mutation: " + mutation
+                raise ValueError("Invalid mutation: " + mutation)
             mutation_affects = infer_mutation_affects(position)
 
             # the third element is one of indel, ins, del or the special case fs
             indel_type = cols[1]
 
-            assert indel_type in ["indel", "ins", "del", "fs", "mixed"], (
-                "form of indel not recognised: " + indel_type
-            )
+            if indel_type not in ["indel", "ins", "del", "fs", "mixed"]:
+                raise ValueError(
+                    "form of indel not recognised: " + indel_type
+                )
 
             # if there is a fourth and final element to an INDEL it is either _4 or
             #    _ctgc
             if len(cols) == 3:
-                assert indel_type in ["ins", "del"], (
-                    "form of indel does not make sense when length "
-                    + "or bases specified!: "
-                    + indel_type
-                )
+                if indel_type not in ["ins", "del"]:
+                    raise ValueError(
+                        "form of indel does not make sense when length "
+                        + "or bases specified!: "
+                        + indel_type
+                    )
                 try:
                     indel_length = int(cols[2])
                 except ValueError:
                     indel_length = len(cols[2])
                     indel_bases = cols[2]
-                    assert 0 not in [
+                    if 0 in [
                         c in ["a", "t", "c", "g", "z", "x"] for c in indel_bases
-                    ], "only nucleotides of a,t,c,g,z,x are allowed!"
+                    ]:
+                        raise ValueError(
+                            "only nucleotides of a,t,c,g,z,x are allowed! "
+                        )
+                if indel_length <= 0:
+                    raise ValueError(
+                        "makes no sense to have a negative indel length! " + cols[2]
+                    )
 
-                assert indel_length > 0, (
-                    "makes no sense to have a negative indel length! " + cols[2]
-                )
-
-    assert mutation_type in [
-        "INDEL",
-        "SNP",
-    ], "form of mutation_type not recognised: " + str(mutation_type)
+    if mutation_type not in ["INDEL", "SNP"]:
+        raise ValueError(
+            "form of mutation not recognised: " + mutation + " (" + str(cols) + ")"
+        )
 
     # insist we've been given an amino acid or a wildcard only
     if mutation_type == "SNP":
@@ -1371,10 +1376,9 @@ def sanity_check_snp(before: str | None, after: str | None) -> None:
         after (str): Alt bases/AA
 
     Raises:
-        AssertationError: Raised in cases in which the SNP is invalid.
+        ValueError: Raised in cases in which the SNP is invalid.
     """
-
-    assert after in [
+    if after not in [
         "a",
         "c",
         "t",
@@ -1407,10 +1411,11 @@ def sanity_check_snp(before: str | None, after: str | None) -> None:
         "X",
         "Y",
         "Z",
-    ], (
-        str(after) + " is not a recognised amino acid or base!"
-    )
-    assert before in [
+    ]:
+        raise ValueError(
+            str(after) + " is not a recognised amino acid or base!"
+        )
+    if before not in [
         "a",
         "c",
         "t",
@@ -1437,14 +1442,15 @@ def sanity_check_snp(before: str | None, after: str | None) -> None:
         "V",
         "W",
         "Y",
-    ], (
-        str(before) + " is not a recognised amino acid or base!"
-    )
+    ]:
+        raise ValueError(
+            str(before) + " is not a recognised amino acid or base!"
+        )
 
     if before.islower():
-        assert after.islower(), "nucleotides must be lowercase!"
-        assert (
-            before != after
-        ), "makes no sense for the nucleotide to be the same in a mutation!"
-    elif before.isupper():
-        assert after.isupper() or after == "!", "amino acids must be UPPERCASE!"
+        if not after.islower():
+            raise ValueError("nucleotides must be lowercase!")
+        if before == after:
+            raise ValueError("makes no sense for the nucleotide to be the same in a mutation!")
+    elif before.isupper() and not after.isupper() and after != "!":
+        raise ValueError("amino acids must be UPPERCASE!")
