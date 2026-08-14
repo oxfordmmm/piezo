@@ -1293,7 +1293,9 @@ def parse_mutation(
                 except ValueError:
                     indel_length = len(cols[2])
                     indel_bases = cols[2]
-                    if 0 in [c in ["a", "t", "c", "g", "z", "x"] for c in indel_bases]:
+                    if False in [
+                        c in ["a", "t", "c", "g", "z", "x"] for c in indel_bases
+                    ]:
                         raise ValueError(
                             "only nucleotides of a,t,c,g,z,x are allowed! "
                         )
