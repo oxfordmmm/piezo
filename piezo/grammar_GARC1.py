@@ -1277,9 +1277,7 @@ def parse_mutation(
             indel_type = cols[1]
 
             if indel_type not in ["indel", "ins", "del", "fs", "mixed"]:
-                raise ValueError(
-                    "form of indel not recognised: " + indel_type
-                )
+                raise ValueError("form of indel not recognised: " + indel_type)
 
             # if there is a fourth and final element to an INDEL it is either _4 or
             #    _ctgc
@@ -1295,9 +1293,7 @@ def parse_mutation(
                 except ValueError:
                     indel_length = len(cols[2])
                     indel_bases = cols[2]
-                    if 0 in [
-                        c in ["a", "t", "c", "g", "z", "x"] for c in indel_bases
-                    ]:
+                    if 0 in [c in ["a", "t", "c", "g", "z", "x"] for c in indel_bases]:
                         raise ValueError(
                             "only nucleotides of a,t,c,g,z,x are allowed! "
                         )
@@ -1412,9 +1408,7 @@ def sanity_check_snp(before: str | None, after: str | None) -> None:
         "Y",
         "Z",
     ]:
-        raise ValueError(
-            str(after) + " is not a recognised amino acid or base!"
-        )
+        raise ValueError(str(after) + " is not a recognised amino acid or base!")
     if before not in [
         "a",
         "c",
@@ -1443,14 +1437,14 @@ def sanity_check_snp(before: str | None, after: str | None) -> None:
         "W",
         "Y",
     ]:
-        raise ValueError(
-            str(before) + " is not a recognised amino acid or base!"
-        )
+        raise ValueError(str(before) + " is not a recognised amino acid or base!")
 
     if before.islower():
         if not after.islower():
             raise ValueError("nucleotides must be lowercase!")
         if before == after:
-            raise ValueError("makes no sense for the nucleotide to be the same in a mutation!")
+            raise ValueError(
+                "makes no sense for the nucleotide to be the same in a mutation!"
+            )
     elif before.isupper() and not after.isupper() and after != "!":
         raise ValueError("amino acids must be UPPERCASE!")
