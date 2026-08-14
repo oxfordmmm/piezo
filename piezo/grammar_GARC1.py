@@ -13,7 +13,7 @@ class Catalogue(NamedTuple):
     name: str
     version: str
     grammar: str
-    values: str
+    values: list[str]
     drugs: list[str]
     genes: list[str]
     drug_lookup: dict[str, list[str]]
@@ -60,7 +60,7 @@ def validate_multi(mutation: str) -> None:
         "generic",
         "1.0",
         "GARC1",
-        "R",  # Obviously not R but RFUS are needed here
+        ["R"],  # Obviously not R but RFUS are needed here
         ["na"],
         generals["GENE"].tolist(),
         {"na": generals["GENE"].tolist()},
@@ -703,7 +703,7 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
         catalogue.name,
         catalogue.version,
         catalogue.grammar,
-        "R",  # Obviously not R but RFUS are needed here
+        ["R"],  # Obviously not R but RFUS are needed here
         ["na"],
         r["GENE"].tolist(),
         {"na": r["GENE"].tolist()},
@@ -732,7 +732,7 @@ def match_multi(rule: pandas.Series, mutation: str, catalogue: Catalogue) -> boo
                 catalogue.name,
                 catalogue.version,
                 catalogue.grammar,
-                "R",  # Obviously not R but RFUS are needed here
+                ["R"],  # Obviously not R but RFUS are needed here
                 ["na"],
                 r["GENE"].tolist(),
                 {"na": r["GENE"].tolist()},

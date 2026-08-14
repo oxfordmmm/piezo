@@ -117,9 +117,8 @@ def load_catalogue(catalogue_file: str, prediction_subset_only: bool) -> Catalog
     assert (
         len(rules.PREDICTION_VALUES.unique()) == 1
     ), "multiple grammar value types used in the catalogue!"
-    values = rules.PREDICTION_VALUES.unique()[0]
-    if values in ["RS", "RUS", "RFUS"]:
-        values = [i for i in rules.PREDICTION_VALUES.unique()[0]]
+    if rules.PREDICTION_VALUES.unique()[0] in ["RS", "RUS", "RFUS"]:
+        values: list[str] = [i for i in rules.PREDICTION_VALUES.unique()[0]]
         assert sorted(values) == sorted(rules.PREDICTION.unique()), (
             "PREDICTION column contains entries not in "
             + rules.PREDICTION_VALUES.unique()[0]
