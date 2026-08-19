@@ -1,9 +1,6 @@
-#! /usr/bin/python3.5
-
 import argparse
 
 import piezo
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

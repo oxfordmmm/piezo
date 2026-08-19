@@ -2,8 +2,6 @@
 reside within the catalogues.
 """
 
-#! /usr/bin/env python
-
 # -*- coding: utf-8 -*-
 
 from .catalogue import ResistanceCatalogue  # noqa: F401
