@@ -89,3 +89,13 @@ $ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_
 $ piezo-predict.py --catalogue tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv --mutation M2@300_ins_cta
 {'DRUG_B': 'R', 'DRUG_A': 'U'}
 ```
+
+## Citation
+If you use `piezo` in your work, please cite:
+```
+Westhead J, Baker CS, Brouard M, Colpus M, Constantinides B, Hall A, Knaggs J, Lopes Alves M, Spies R, Thai H, Surrall S, Govender K, Peto TEA, Crook DW, Omar SV, Turner R, Fowler PW
+Characterising the performance of an antibiotic resistance prediction tool, gnomonicus, using a diverse testset of 2,663 Mycobacterium tuberculosis samples
+Microbial Genomics 11:001592 doi:10.1099/mgen.0.001592
+```
+
+A BibTeX citation is included [here](CITATION.bib)
