@@ -588,7 +588,7 @@ def predict_gene_presence(
                 predictions[drug] = (final_prediction, final_evidence)
         else:
             predictions[drug] = ("S", {})
-    
+
     # Give drug by drug predictions iff there is at least one drug with a non-S prediction and evidence
     for pred, ev in predictions.values():
         if pred != "S" and ev != {}:

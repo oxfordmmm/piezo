@@ -470,6 +470,7 @@ def test_minor_population(test_catalogue):
     assert test_catalogue.predict("M2@G74!:4&M2@G74X:2") == {"DRUG_B": "U"}
     assert test_catalogue2.predict("M2@G74!:0.04&M2@G74X:0.02") == {"DRUG_B": "U"}
 
+
 @pytest.mark.parametrize(
     "test_catalogue",
     [
@@ -485,7 +486,10 @@ def test_minor_population(test_catalogue):
 def test_catalogue_prediction_gene_presence(test_catalogue):
     # This catalogue has gene presence rules for gene `M1` for both drugs
     assert test_catalogue.predict("M1") == {"DRUG_A": "R", "DRUG_B": "U"}
-    assert test_catalogue.predict("M1", show_evidence=True) == {"DRUG_A": ("R", {"row": 56}), "DRUG_B": ("U", {"row": 57})}
+    assert test_catalogue.predict("M1", show_evidence=True) == {
+        "DRUG_A": ("R", {"row": 56}),
+        "DRUG_B": ("U", {"row": 57}),
+    }
 
     # Test that we just get `S` for genes which don't have any rules in the catalogue
     assert test_catalogue.predict("M2") == "S"
