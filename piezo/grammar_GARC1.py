@@ -338,10 +338,12 @@ def predict_GARC1(
             return result_multi
         else:
             return {key: result_multi[key][0] for key in result_multi}
-        
+
     if "@" not in gene_mutation:
         # Gene presence mutation, so handle separately
-        result_gene_presence: dict[str, tuple] | str = predict_gene_presence(catalogue, gene_mutation)
+        result_gene_presence: dict[str, tuple] | str = predict_gene_presence(
+            catalogue, gene_mutation
+        )
         if show_evidence or isinstance(result_gene_presence, str):
             return result_gene_presence
         else:
@@ -543,7 +545,9 @@ def predict(
     return result
 
 
-def predict_gene_presence(catalogue: Catalogue, gene_mutation: str) -> dict[str, tuple] | str:
+def predict_gene_presence(
+    catalogue: Catalogue, gene_mutation: str
+) -> dict[str, tuple] | str:
     """Get the predictions for a given gene presence mutation.
 
     Args:
@@ -556,7 +560,9 @@ def predict_gene_presence(catalogue: Catalogue, gene_mutation: str) -> dict[str,
     """
     # All of the gene predictions are the same priority, so just return
     # the most significant prediction for each drug
-    gene_level_catalogue_mutations = catalogue.rules[catalogue.rules["MUTATION_TYPE"] == "GENE"]
+    gene_level_catalogue_mutations = catalogue.rules[
+        catalogue.rules["MUTATION_TYPE"] == "GENE"
+    ]
     predictions = {}
     for drug in catalogue.drugs:
         subset_rules = gene_level_catalogue_mutations.loc[
@@ -566,7 +572,7 @@ def predict_gene_presence(catalogue: Catalogue, gene_mutation: str) -> dict[str,
         if not subset_rules.empty:
             for _, row in subset_rules.iterrows():
                 if row["GENE"] == gene_mutation:
-                    drug_predictions[row["PREDICTION"]]  = row["EVIDENCE"]
+                    drug_predictions[row["PREDICTION"]] = row["EVIDENCE"]
 
             if not drug_predictions:
                 predictions[drug] = "S"
@@ -574,10 +580,12 @@ def predict_gene_presence(catalogue: Catalogue, gene_mutation: str) -> dict[str,
                 final_prediction = "S"
                 final_evidence = {}
                 for pred in drug_predictions:
-                    if catalogue.values.index(pred) <= catalogue.values.index(final_prediction):
+                    if catalogue.values.index(pred) <= catalogue.values.index(
+                        final_prediction
+                    ):
                         final_prediction = pred
                         final_evidence = drug_predictions[pred]
-                predictions[drug]  = (final_prediction, final_evidence)
+                predictions[drug] = (final_prediction, final_evidence)
         else:
             predictions[drug] = "S"
     return predictions
@@ -1296,16 +1304,18 @@ def parse_mutation(
 
     if mutation == "":
         # Gene presence/absence mutation
-        return [[
-            None,
-            "GENE",
-            "GENE",
-            None,
-            None,
-            None,
-            None,
-            None,
-        ]]
+        return [
+            [
+                None,
+                "GENE",
+                "GENE",
+                None,
+                None,
+                None,
+                None,
+                None,
+            ]
+        ]
 
     # split the mutation on underscore
     cols = mutation.split("_")
