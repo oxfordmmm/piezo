@@ -155,9 +155,18 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
 
     if len(cols) == 1:
         if "@" not in row["MUTATION"]:
-            mutation_type = "GENE"
-            mutation_affects = "GENE"
-            position = None
+            if ":" in gene:
+                # Lineage doesn't refer to a gene
+                # But is specifcally `lineage:<lineage>`
+                mutation_type = "LINEAGE"
+                mutation_affects = "LINEAGE"
+                position = None
+                # Remove the lineage tag
+                gene = gene.split(":")[-1]
+            else:
+                mutation_type = "GENE"
+                mutation_affects = "GENE"
+                position = None
         else:
             mutation_type = "SNP"
             mutation_affects = "CDS"
@@ -561,7 +570,8 @@ def predict_gene_presence(
     # All of the gene predictions are the same priority, so just return
     # the most significant prediction for each drug
     gene_level_catalogue_mutations = catalogue.rules[
-        catalogue.rules["MUTATION_TYPE"] == "GENE"
+        (catalogue.rules["MUTATION_TYPE"] == "GENE") |
+        (catalogue.rules["MUTATION_TYPE"] == "LINEAGE")
     ]
     predictions: dict[str, tuple] = {}
     for drug in catalogue.drugs:

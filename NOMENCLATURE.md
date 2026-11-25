@@ -43,15 +43,31 @@ nucleotides in ['a','c','t','g','x','z']
 This is designed to be general and expandable (especially for indels)
 
 * `*` is reserved to mean any residue (or base, depending on context). Note that `-*` is expanded to mean 'any promoter position'
-* `!` is reserved for the STOP codon. This is defined in the private method `_setup_conversion_dicts()` in `cryptic.genetics.gene` (rather than `Stop` or `*` as previously)
+* `!` is reserved for the STOP codon (rather than `Stop`, `Ter` or `*` as previously).
 * `?` is a wildcard for any non-synonmous mutation and `=` is a wildcard for the synoymous mutation
 * `&` can be used to join any valid mutation with any other valid mutation to form a multi-mutation - allowing detailing of several mutations in a single row of a catalogue
 
 ## Catalogue entries
 
+### Lineage rules
+This is the highest level of the heirarchy and these rules are therefore applied first. A lineage rule is indicated by `lineage:<name>` where `<name>` is the lineage name. This gives an explicit difference from the gene presence rules detailed below. Examples:
+
+A rule referring to the sample's lineage being lineage 1
+
+`lineage:Lineage 1`
+
+A lineage in this context can also refer to sub species (as in some contexts these are essentially the same). For example both of these lineage rules refer to the same lineage
+
+`lineage:Mycobacterium Africanum`
+
+`lineage:Lineage 9`
+
+
+
+
 ### Presence or absence of genes
 
-This is the highest level of the hierarchy and these rules are therefore applied first. A gene presence entry is simply
+This is the second highest level of the hierarchy and these rules are therefore applied second. A gene presence entry is simply
 
 `oxa48`
 
@@ -254,10 +270,16 @@ This may look like `rpoB@S450L:2&rpoB@A451V:3`
 ## Backus–Naur form (BNF)
 ### Catalogue BNF
 This is a definition of the grammar acceptable to use within a catalogue.
-Where `<gene-name>` is any valid gene or locus name (usually matching the regex `[a-zA-Z0-9_]+`)
+Where `<gene-name>` is any valid gene or locus name (usually matching the regex `[a-zA-Z0-9_]+`) and `<lineage-name>` is similarly any valid lineage name (usually matching the regex `[a-zA-Z0-9_ ]+`). Illegal characters in both `<gene-name>` and `<lineage-name>` are `@:&^`.
 ```
 <complete-mutation> ::= <partial-mutation> | "^"<partial-mutation>
-<partial-mutation> ::= <mutation> | <mutation>":"<number> | <mutation>":0."<number> | <partial-mutation>"&"<partial-mutation> | <gene-name>
+<partial-mutation> ::= 
+                     "lineage:"<lineage-name> |
+                     <gene-name> |
+                     <mutation> |
+                     <mutation>":"<number> |
+                     <mutation>":0."<number> |
+                     <partial-mutation>"&"<partial-mutation>
 <mutation> ::= 
                <gene-name>"@"<nucleotide><position><nucleotide> | 
                <gene-name>"@"<amino-acid><number><amino-acid> |
@@ -296,9 +318,15 @@ Where `<gene-name>` is any valid gene or locus name (usually matching the regex 
 ```
 ### Prediction BNF
 Due to wildcards not being intended for use for prediction (i.e it doesn't make sense to ask `piezo` to predict the effects of `rpoB@*?`), the grammar for prediction is slightly changed to reflect this.
-`<gene-name>` is still any valid gene or locus name (usually matching the regex `[a-zA-Z0-9_]+`)
+`<gene-name>` is still any valid gene or locus name (usually matching the regex `[a-zA-Z0-9_]+`) and `<lineage-name>` is similarly any valid lineage name (usually matching the regex `[a-zA-Z0-9_ ]+`). Illegal characters in both `<gene-name>` and `<lineage-name>` are `@:&^`.
 ```
-<complete-mutation> ::= <gene-name> | <mutation> | <mutation>":"<number> | <mutation>":0."<number> | <complete-mutation>"&"<complete-mutation>
+<complete-mutation> ::= 
+                        <lineage-name> |
+                        <gene-name> |
+                        <mutation> |
+                        <mutation>":"<number> |
+                        <mutation>":0."<number> |
+                        <complete-mutation>"&"<complete-mutation>
 <mutation> ::= 
                <gene-name>"@"<nucleotide><pos><nucleotide> | 
                <gene-name>"@"<amino-acid><number><amino-acid> |

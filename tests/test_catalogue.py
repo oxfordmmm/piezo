@@ -12,8 +12,9 @@ import piezo
             piezo.ResistanceCatalogue(
                 "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"
             ),
-            ["M1", "M2", "N", "MULTI"],
+            ["Lineage 1", "M1", "M2", "N", "MULTI"],
             {
+                "Lineage 1": ["DRUG_A"],
                 "M1": ["DRUG_A", "DRUG_B"],
                 "M2": ["DRUG_A", "DRUG_B"],
                 "MULTI": ["DRUG_A", "DRUG_B"],
@@ -25,8 +26,9 @@ import piezo
                 "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv",
                 prediction_subset_only=True,
             ),
-            ["M1", "M2", "MULTI"],
+            ["Lineage 1", "M1", "M2", "MULTI"],
             {
+                "Lineage 1": ["DRUG_A"],
                 "M1": ["DRUG_A", "DRUG_B"],
                 "M2": ["DRUG_A", "DRUG_B"],
                 "MULTI": ["DRUG_A", "DRUG_B"],
@@ -45,7 +47,7 @@ def test_catalogue__init__(test_catalogue, genes, gene_lookup):
 
     assert test_catalogue.catalogue.grammar == "GARC1"
 
-    assert test_catalogue.catalogue.number_rows == 58
+    assert test_catalogue.catalogue.number_rows == 59
 
     assert test_catalogue.catalogue.drugs == ["DRUG_A", "DRUG_B"]
 
@@ -493,6 +495,31 @@ def test_catalogue_prediction_gene_presence(test_catalogue):
 
     # Test that we just get `S` for genes which don't have any rules in the catalogue
     assert test_catalogue.predict("M2") == "S"
+    
+@pytest.mark.parametrize(
+    "test_catalogue",
+    [
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv"
+        ),
+        piezo.ResistanceCatalogue(
+            "tests/test-catalogue/NC_004148.2_TEST_v1.0_GARC1_RFUS.csv",
+            prediction_subset_only=True,
+        ),
+    ],
+)
+def test_catalogue_prediction_lineage(test_catalogue):
+    # This catalogue has a single lineage rule
+    assert test_catalogue.predict("Lineage 1") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue.predict("Lineage 1", show_evidence=True) == {
+        "DRUG_A": ("R", {"row": 58}),
+        "DRUG_B": ("S", {}),
+    }
+
+    # Test that we just get `S` for other lineages
+    assert test_catalogue.predict("Lineage 2") == "S"
+    assert test_catalogue.predict("Lineage 9") == "S"
+    assert test_catalogue.predict("Mycobacterium Bovis") == "S"
 
 
 def test_misc():

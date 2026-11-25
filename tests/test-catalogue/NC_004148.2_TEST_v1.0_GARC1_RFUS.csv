@@ -57,3 +57,4 @@ NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M1@*_indel,U,{},"{""row"": 54}",{}
 NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M1@-*_indel,U,{},"{""row"": 55}",{}
 NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,M1,R,{},"{""row"": 56}",{}
 NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_B,M1,U,{},"{""row"": 57}",{}
+NC_004148.2,TEST,v1.0,GARC1,RFUS,DRUG_A,lineage:Lineage 1,R,{},"{""row"": 58}",{}
