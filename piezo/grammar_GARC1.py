@@ -588,7 +588,13 @@ def predict_gene_presence(
                 predictions[drug] = (final_prediction, final_evidence)
         else:
             predictions[drug] = ("S", {})
-    return predictions
+    
+    # Give drug by drug predictions iff there is at least one drug with a non-S prediction and evidence
+    for pred, ev in predictions.values():
+        if pred != "S" and ev != {}:
+            return predictions
+
+    return "S"
 
 
 def predict_multi(catalogue: Catalogue, gene_mutation: str) -> dict[str, tuple] | str:
