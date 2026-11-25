@@ -563,7 +563,7 @@ def predict_gene_presence(
     gene_level_catalogue_mutations = catalogue.rules[
         catalogue.rules["MUTATION_TYPE"] == "GENE"
     ]
-    predictions = {}
+    predictions: dict[str, tuple] = {}
     for drug in catalogue.drugs:
         subset_rules = gene_level_catalogue_mutations.loc[
             (gene_level_catalogue_mutations.DRUG == drug)
@@ -575,7 +575,7 @@ def predict_gene_presence(
                     drug_predictions[row["PREDICTION"]] = row["EVIDENCE"]
 
             if not drug_predictions:
-                predictions[drug] = "S"
+                predictions[drug] = ("S", {})
             else:
                 final_prediction = "S"
                 final_evidence = {}
@@ -587,7 +587,7 @@ def predict_gene_presence(
                         final_evidence = drug_predictions[pred]
                 predictions[drug] = (final_prediction, final_evidence)
         else:
-            predictions[drug] = "S"
+            predictions[drug] = ("S", {})
     return predictions
 
 
@@ -1305,7 +1305,7 @@ def parse_mutation(
     if mutation == "":
         # Gene presence/absence mutation
         return [
-            [
+            (
                 None,
                 "GENE",
                 "GENE",
@@ -1314,7 +1314,7 @@ def parse_mutation(
                 None,
                 None,
                 None,
-            ]
+            )
         ]
 
     # split the mutation on underscore
