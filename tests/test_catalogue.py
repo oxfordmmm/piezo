@@ -495,7 +495,8 @@ def test_catalogue_prediction_gene_presence(test_catalogue):
 
     # Test that we just get `S` for genes which don't have any rules in the catalogue
     assert test_catalogue.predict("M2") == "S"
-    
+
+
 @pytest.mark.parametrize(
     "test_catalogue",
     [
