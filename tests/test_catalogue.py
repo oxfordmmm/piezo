@@ -47,7 +47,7 @@ def test_catalogue__init__(test_catalogue, genes, gene_lookup):
 
     assert test_catalogue.catalogue.grammar == "GARC1"
 
-    assert test_catalogue.catalogue.number_rows == 59
+    assert test_catalogue.catalogue.number_rows == 60
 
     assert test_catalogue.catalogue.drugs == ["DRUG_A", "DRUG_B"]
 
@@ -493,8 +493,14 @@ def test_catalogue_prediction_gene_presence(test_catalogue):
         "DRUG_B": ("U", {"row": 57}),
     }
 
+    # Also has gene presence rules for gene `M2` for drug `DRUG_A`
+    assert test_catalogue.predict("M2") == {"DRUG_A": "R"}
+    assert test_catalogue.predict("M2", show_evidence=True) == {
+        "DRUG_A": ("R", {"row": 58}),
+    }
+
     # Test that we just get `S` for genes which don't have any rules in the catalogue
-    assert test_catalogue.predict("M2") == "S"
+    assert test_catalogue.predict("NOT_A_GENE") == "S"
 
 
 @pytest.mark.parametrize(
@@ -511,10 +517,9 @@ def test_catalogue_prediction_gene_presence(test_catalogue):
 )
 def test_catalogue_prediction_lineage(test_catalogue):
     # This catalogue has a single lineage rule
-    assert test_catalogue.predict("Lineage 1") == {"DRUG_A": "R", "DRUG_B": "S"}
+    assert test_catalogue.predict("Lineage 1") == {"DRUG_A": "R"}
     assert test_catalogue.predict("Lineage 1", show_evidence=True) == {
-        "DRUG_A": ("R", {"row": 58}),
-        "DRUG_B": ("S", {}),
+        "DRUG_A": ("R", {"row": 59}),
     }
 
     # Test that we just get `S` for other lineages

@@ -570,8 +570,8 @@ def predict_gene_presence(
     # All of the gene predictions are the same priority, so just return
     # the most significant prediction for each drug
     gene_level_catalogue_mutations = catalogue.rules[
-        (catalogue.rules["MUTATION_TYPE"] == "GENE")
-        | (catalogue.rules["MUTATION_TYPE"] == "LINEAGE")
+        (catalogue.rules["MUTATION_TYPE"] == "GENE") |
+        (catalogue.rules["MUTATION_TYPE"] == "LINEAGE")
     ]
     predictions: dict[str, tuple] = {}
     for drug in catalogue.drugs:
@@ -600,10 +600,12 @@ def predict_gene_presence(
             predictions[drug] = ("S", {})
 
     # Give drug by drug predictions iff there is at least one drug with a non-S prediction and evidence
-    for pred, ev in predictions.values():
-        if pred != "S" and ev != {}:
-            return predictions
-
+    for drug in catalogue.drugs:
+        pred, ev = predictions[drug]
+        if pred == "S" and ev == {}:
+            del predictions[drug]
+    if predictions:
+        return predictions
     return "S"
 
 
