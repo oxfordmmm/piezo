@@ -58,7 +58,7 @@ A rule referring to the sample's lineage being lineage 1
 
 A lineage in this context can also refer to sub species (as in some contexts these are essentially the same). For example both of these lineage rules refer to the same lineage
 
-`lineage:Mycobacterium Africanum`
+`lineage:Mycobacterium africanum`
 
 `lineage:Lineage 9`
 
