@@ -138,7 +138,7 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
     gene = components[0]
 
     # ..and the remainder is the mutation
-    mutation = row["MUTATION"].split(gene + "@")[1]
+    mutation = row["MUTATION"].split(gene + "@")[1] if "@" in row["MUTATION"] else ""
 
     # Check for minor populations (and remove minors, we'll check for those separately)
     if ":" in mutation:
@@ -151,18 +151,33 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
     valid = True
 
     if len(cols) == 1:
-        mutation_type = "SNP"
-        mutation_affects = "CDS"
-        try:
-            position = cols[0][1:-1]
-            if int(position) < 0:
-                mutation_affects = "PROM"
-            elif int(position) == 0:
-                valid = False
-        except ValueError:
-            position = cols[0][:-1]
-            if position[0] == "-":
-                mutation_affects = "PROM"
+        if "@" not in row["MUTATION"]:
+            if ":" in gene:
+                # Lineage doesn't refer to a gene
+                # But is specifcally `lineage:<lineage>`
+                mutation_type = "LINEAGE"
+                mutation_affects = "LINEAGE"
+                position = None
+                # Remove the lineage tag
+                gene = gene.split(":")[-1]
+            else:
+                mutation_type = "GENE"
+                mutation_affects = "GENE"
+                position = None
+        else:
+            mutation_type = "SNP"
+            mutation_affects = "CDS"
+            position = None
+            try:
+                position = cols[0][1:-1]
+                if int(position) < 0:
+                    mutation_affects = "PROM"
+                elif int(position) == 0:
+                    valid = False
+            except ValueError:
+                position = cols[0][:-1]
+                if position[0] == "-":
+                    mutation_affects = "PROM"
 
     elif len(cols) in [2, 3]:
         mutation_type = "INDEL"
@@ -330,10 +345,20 @@ def predict_GARC1(
         else:
             return {key: result_multi[key][0] for key in result_multi}
 
+    if "@" not in gene_mutation:
+        # Gene presence mutation, so handle separately
+        result_gene_presence: dict[str, tuple] | str = predict_gene_presence(
+            catalogue, gene_mutation
+        )
+        if show_evidence or isinstance(result_gene_presence, str):
+            return result_gene_presence
+        else:
+            return {key: result_gene_presence[key][0] for key in result_gene_presence}
+
     components = gene_mutation.split("@")
 
     gene = components[0]
-    mutation = gene_mutation.split(gene + "@")[1]
+    mutation = gene_mutation.split(gene + "@")[1] if "@" in gene_mutation else ""
 
     # Check for minors
     if ":" in mutation:
@@ -524,6 +549,61 @@ def predict(
             result[compound] = final_prediction
 
     return result
+
+
+def predict_gene_presence(
+    catalogue: Catalogue, gene_mutation: str
+) -> dict[str, tuple] | str:
+    """Get the predictions for a given gene presence mutation.
+
+    Args:
+        catalogue (Catalogue): The resistance catalogue
+        gene_mutation (str): String of the gene presence rule
+
+    Returns:
+        dict[str, tuple] | str: Either a dict with drugs an the keys, or 'S' when no
+            predictions in catalogue
+    """
+    # All of the gene predictions are the same priority, so just return
+    # the most significant prediction for each drug
+    gene_level_catalogue_mutations = catalogue.rules[
+        (catalogue.rules["MUTATION_TYPE"] == "GENE")
+        | (catalogue.rules["MUTATION_TYPE"] == "LINEAGE")
+    ]
+    predictions: dict[str, tuple] = {}
+    for drug in catalogue.drugs:
+        subset_rules = gene_level_catalogue_mutations.loc[
+            (gene_level_catalogue_mutations.DRUG == drug)
+        ]
+        drug_predictions = {}
+        if not subset_rules.empty:
+            for _, row in subset_rules.iterrows():
+                if row["GENE"] == gene_mutation:
+                    drug_predictions[row["PREDICTION"]] = row["EVIDENCE"]
+
+            if not drug_predictions:
+                predictions[drug] = ("S", {})
+            else:
+                final_prediction = "S"
+                final_evidence = {}
+                for pred in drug_predictions:
+                    if catalogue.values.index(pred) <= catalogue.values.index(
+                        final_prediction
+                    ):
+                        final_prediction = pred
+                        final_evidence = drug_predictions[pred]
+                predictions[drug] = (final_prediction, final_evidence)
+        else:
+            predictions[drug] = ("S", {})
+
+    # Give drug by drug predictions iff there is at least one drug with a non-S prediction and evidence
+    for drug in catalogue.drugs:
+        pred, ev = predictions[drug]
+        if pred == "S" and ev == {}:
+            del predictions[drug]
+    if predictions:
+        return predictions
+    return "S"
 
 
 def predict_multi(catalogue: Catalogue, gene_mutation: str) -> dict[str, tuple] | str:
@@ -843,12 +923,12 @@ def row_prediction(
                     and row["MINOR"] != ""
                     and minor >= 1
                     and float(row["MINOR"]) >= 1
-                ):
                     # We have COV
-                    if minor >= float(row["MINOR"]):
-                        # Match
-                        pred = row["PREDICTION"]
-                        evidence = row["EVIDENCE"]
+                    and minor >= float(row["MINOR"])
+                ):
+                    # Match
+                    pred = row["PREDICTION"]
+                    evidence = row["EVIDENCE"]
     if pred:
         predictions[int(priority)] = (str(pred), evidence)
 
@@ -900,13 +980,13 @@ def large_del(
                     and rule["MINOR"] != ""
                     and minor >= 1
                     and float(rule["MINOR"]) >= 1
-                ):
                     # We have COV
-                    if minor >= float(rule["MINOR"]):
-                        # Match
-                        pred = rule["PREDICTION"]
-                        evidence = rule["EVIDENCE"]
-                        current = percentage
+                    and minor >= float(rule["MINOR"])
+                ):
+                    # Match
+                    pred = rule["PREDICTION"]
+                    evidence = rule["EVIDENCE"]
+                    current = percentage
     if pred:
         predictions[1] = (str(pred), evidence)
 
@@ -1208,8 +1288,8 @@ def parse_mutation(
     Take a GENE_MUTATION, and determine what type it is, what it affects etc
 
     Args:
-        mutation (str): in the gene_mutation form as defined by GARC e.g. rpoB@S450L or
-            rpoB@1300_ins_3
+        mutation (str): in the gene_mutation form as defined by GARC e.g. S450L or
+            1300_ins_3
 
     Returns:
         position (int): the position of the mutation. This is the amino acid number in
@@ -1236,6 +1316,21 @@ def parse_mutation(
     indel_bases = None
     before = None
     after = None
+
+    if mutation == "":
+        # Gene presence/absence mutation
+        return [
+            (
+                None,
+                "GENE",
+                "GENE",
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+        ]
 
     # split the mutation on underscore
     cols = mutation.split("_")
