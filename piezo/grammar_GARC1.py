@@ -132,10 +132,7 @@ def split_mutation(row: pandas.Series) -> pandas.Series:
         )
 
     # split the supplied mutation on _ which separates the components
-    if "@" in row["MUTATION"]:
-        components = row["MUTATION"].split("@")
-    else:
-        components = [row["MUTATION"]]
+    components = row["MUTATION"].split("@")
 
     # the gene name is always the first component
     gene = components[0]
